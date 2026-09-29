@@ -25,6 +25,17 @@ import importlib
 import time
 
 from core.live_model import pick_live_model
+from audio import create_audio_backend
+from audio.base import AudioInterface
+from llm_providers import (
+    BaseLLM,
+    LLMConfig,
+    LLMEvent,
+    LLMEventType,
+    ToolCall,
+    ToolResult,
+    create_llm_provider,
+)
 
 logger = logging.getLogger("jarvis")
 
@@ -98,6 +109,7 @@ DEFAULT_VOICE_NAME   = "puck"
 get_settings().audio.receive_sample_rate = 24000
 get_settings().audio.chunk_size          = 1024
 get_settings().audio.vad_silence_ms = 200
+LIVE_VAD_SILENCE_MS = 200
 STARTUP_CLAPS_REQUIRED = 2
 STARTUP_CLAP_MAX_GAP_SECONDS = 4.0
 STARTUP_CLAP_COOLDOWN_SECONDS = 0.22
@@ -398,7 +410,6 @@ CLOUD_SAFE_ACTIONS = frozenset({
 })
 
 
-
 def get_tool_declarations(*, cloud_safe: bool = False) -> list[dict]:
     """Return the Gemini tools available for the requested runtime."""
     from tools.registry import registry as tool_registry
@@ -412,6 +423,45 @@ def get_tool_declarations(*, cloud_safe: bool = False) -> list[dict]:
     )
 
 
+# All tool names available in desktop mode (non-cloud-safe).
+ALL_TOOL_NAMES = frozenset({
+    "open_app",
+    "web_search",
+    "weather_report",
+    "check_messages",
+    "prepare_message_reply",
+    "send_message",
+    "email_control",
+    "reminder",
+    "youtube_video",
+    "media_control",
+    "screen_process",
+    "computer_settings",
+    "browser_control",
+    "file_controller",
+    "desktop_control",
+    "code_helper",
+    "dev_agent",
+    "agent_task",
+    "computer_control",
+    "game_updater",
+    "flight_finder",
+    "jarvis_ui_control",
+    "file_processor",
+    "create_presentation",
+    "deep_research",
+    "graphics_quality",
+    "task_status",
+    "save_memory",
+})
+
+# Tools that are only available in local (non-cloud) mode.
+LOCAL_MACHINE_ONLY_ACTIONS = ALL_TOOL_NAMES - CLOUD_SAFE_ACTIONS
+
+# Full tool declarations for desktop mode (backward compatibility with tests).
+TOOL_DECLARATIONS = get_tool_declarations(cloud_safe=False)
+
+
 class JarvisLive:
 
     def __init__(
@@ -422,6 +472,8 @@ class JarvisLive:
         cloud_safe: bool = False,
         api_key: str | None = None,
         external_audio: bool = False,
+        audio_backend: AudioInterface | None = None,
+        llm_provider: BaseLLM | None = None,
     ):
         # Keep ``ui`` as a compatibility alias for desktop integrations that
         # already inspect JarvisLive.ui. The engine contract is JarvisClient.
@@ -431,7 +483,7 @@ class JarvisLive:
         self.external_audio = bool(external_audio)
         self._api_key       = api_key.strip() if isinstance(api_key, str) else None
         self.tool_declarations = get_tool_declarations(cloud_safe=self.cloud_safe)
-        self.session        = None
+        self.session        = None  # Legacy: kept for backward compatibility
         self.audio_in_queue = None
         self.out_queue      = None
         self._loop          = None
@@ -458,6 +510,13 @@ class JarvisLive:
         self._self_quit_timer = None
         self._shutdown_requested = threading.Event()
         self._tour_active = False
+
+        # Audio backend (Phase 5)
+        self._audio_backend = audio_backend
+
+        # LLM Provider (Phase 6)
+        self._llm_provider = llm_provider
+        self._live_model_id: str | None = None
 
     def _on_text_command(self, text: str):
         if not self._loop or not self.session:
@@ -499,6 +558,30 @@ class JarvisLive:
             return False
         await self.out_queue.put({"data": data, "mime_type": mime_type})
         return True
+
+    def _send_audio_external(self, chunk: bytes, mime_type: str) -> None:
+        """Callback for external audio passthrough (e.g., web client)."""
+        if self._loop and self.client:
+            send_audio = getattr(self.client, "send_audio", None)
+            if callable(send_audio):
+                asyncio.run_coroutine_threadsafe(
+                    self._send_audio_to_client(chunk, mime_type),
+                    self._loop
+                )
+
+    async def _send_audio_to_client(self, chunk: bytes, mime_type: str) -> None:
+        """Send audio chunk to external client."""
+        send_audio = getattr(self.client, "send_audio", None)
+        if callable(send_audio):
+            send_audio(chunk, mime_type)
+
+    def _on_audio_input(self, data: bytes) -> None:
+        """Callback for audio input from microphone (called from sounddevice thread)."""
+        if self._loop and self.out_queue and not self._shutdown_requested.is_set():
+            self._loop.call_soon_threadsafe(
+                self.out_queue.put_nowait,
+                {"data": data, "mime_type": "audio/pcm"}
+            )
 
     def set_speaking(self, value: bool):
         with self._speaking_lock:
@@ -752,318 +835,87 @@ class JarvisLive:
             ),
         )
 
-    async def _execute_tool(self, fc) -> types.FunctionResponse:
-        name = fc.name
-        args = dict(fc.args or {})
+async def _execute_tool(self, fc) -> types.FunctionResponse:
+    name = fc.name
+    args = dict(fc.args or {})
 
-        if getattr(self, "cloud_safe", False) and name not in CLOUD_SAFE_ACTIONS:
-            return types.FunctionResponse(
-                id=fc.id,
-                name=name,
-                response={
-                    "result": (
-                        f"Tool '{name}' is unavailable in cloud-safe mode."
-                    )
-                },
-            )
-
-        if getattr(self.ui, "operational_ready", True) is False:
-            return types.FunctionResponse(
-                id=fc.id,
-                name=name,
-                response={"result": "Startup sequence active. Try this action again when JARVIS is ready."},
-            )
-
-        from core.qa_mode import guard_tool_call, qa_block_message
-
-        qa_decision = guard_tool_call(name, args)
-        if not qa_decision.allowed:
-            return types.FunctionResponse(
-                id=fc.id,
-                name=name,
-                response={"result": qa_block_message(qa_decision)},
-            )
-
-        logger.info(f"[JARVIS] 🔧 {name}  {args}")
-        self.ui.set_state("THINKING")
-
-        intercepted = self._intercept_ui_tool_call(name, args)
-        if intercepted is not None:
-            return types.FunctionResponse(
-                id=fc.id, name=name, response={"result": intercepted}
-            )
-
-        # Fase 4 tool execution via registry (thin adapter modules).
-        try:
-            from tools.registry import ToolContext, registry
-
-            tool_ctx = ToolContext(
-                ui=self.ui,
-                speak=self.speak,
-                speak_vision_result=self._speak_vision_result,
-            )
-            tool_result = await registry.execute(name=name, ctx=tool_ctx, args=args)
-            result = tool_result.get("result", "Done.")
-            silent = bool(tool_result.get("silent", False))
-        except Exception as e:
-            result = f"Tool '{name}' failed: {e}"
-            silent = False
-            logger.exception("Unhandled exception")
-            self.speak_error(name, str(e))
-
-        if not self.ui.muted:
-            self.ui.set_state("LISTENING")
-
-        logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
-        response = {"result": result}
-        if silent:
-            response["silent"] = True
-
+    if getattr(self, "cloud_safe", False) and name not in CLOUD_SAFE_ACTIONS:
         return types.FunctionResponse(
             id=fc.id,
             name=name,
-            response=response,
+            response={
+                "result": (
+                    f"Tool '{name}' is unavailable in cloud-safe mode."
+                )
+            },
         )
 
-        if name == "save_memory":
-            category = args.get("category", "notes")
-            key      = args.get("key", "")
-            value    = args.get("value", "")
-            if key and value:
-                update_memory({category: {key: {"value": value}}})
-                logger.info(f"[Memory] 💾 save_memory: {category}/{key} = {value}")
-            if not self.ui.muted:
-                self.ui.set_state("LISTENING")
-            return types.FunctionResponse(
-                id=fc.id, name=name,
-                response={"result": "ok", "silent": True}
-            )
-
-        result = "Done."
-
-        tool_t0 = time.perf_counter()
-        tool_ok = True
-
-        try:
-            if name == "open_app":
-                r = await asyncio.to_thread(lambda: open_app(parameters=args, response=None, player=self.ui))
-                result = r or f"Opened {args.get('app_name')}."
-
-            elif name == "weather_report":
-                r = await asyncio.to_thread(lambda: weather_action(parameters=args, player=self.ui))
-                result = r or "Weather delivered."
-
-            elif name == "browser_control":
-                r = await asyncio.to_thread(lambda: browser_control(parameters=args, player=self.ui))
-                result = r or "Done."
-
-            elif name == "file_controller":
-                if (
-                    args.get("action", "").lower() == "open"
-                    and not args.get("path")
-                    and not args.get("name")
-                ):
-                    current_file = getattr(self.ui, "current_file", None)
-                    if current_file:
-                        args["path"] = current_file
-                r = await asyncio.to_thread(lambda: file_controller(parameters=args, player=self.ui))
-                result = r or "Done."
-
-            elif name == "check_messages":
-                r = await asyncio.to_thread(
-                    lambda: check_messages(parameters=args, response=None, player=self.ui, session_memory=None),
-                )
-                result = r or "No readable messages were found."
-
-            elif name == "prepare_message_reply":
-                r = await asyncio.to_thread(
-                    lambda: prepare_message_reply(parameters=args, response=None, player=self.ui, session_memory=None),
-                )
-                result = r or "The message draft could not be prepared."
-
-            elif name == "send_message":
-                r = await asyncio.to_thread(lambda: send_message(parameters=args, response=None, player=self.ui, session_memory=None))
-                result = r or f"Message sent to {args.get('receiver')}."
-
-            elif name == "email_control":
-                if args.get("action", "").lower() == "connect" and not args.get("credentials_path"):
-                    current_file = getattr(self.ui, "current_file", None)
-                    if current_file and Path(str(current_file)).suffix.lower() == ".json":
-                        args["credentials_path"] = current_file
-                r = await asyncio.to_thread(lambda: email_control(parameters=args, response=None, player=self.ui, session_memory=None))
-                result = r or "Email action completed."
-
-            elif name == "reminder":
-                r = await asyncio.to_thread(lambda: reminder(parameters=args, response=None, player=self.ui))
-                result = r or "Reminder set."
-
-            elif name == "youtube_video":
-                r = await asyncio.to_thread(lambda: youtube_video(parameters=args, response=None, player=self.ui))
-                result = r or "Done."
-
-            elif name == "media_control":
-                r = await asyncio.to_thread(lambda: media_control(parameters=args, response=None, player=self.ui))
-                result = r or "Done."
-
-            elif name == "screen_process":
-                threading.Thread(
-                    target=screen_process,
-                    kwargs={"parameters": args, "response": None,
-                            "player": self.ui, "session_memory": None,
-                            "speak": self._speak_vision_result},
-                    daemon=True
-                ).start()
-                result = "Vision module activated. Stay completely silent — vision module will speak directly."
-
-            elif name == "computer_settings":
-                r = await asyncio.to_thread(lambda: computer_settings(parameters=args, response=None, player=self.ui))
-                result = r or "Done."
-
-            elif name == "desktop_control":
-                r = await asyncio.to_thread(lambda: desktop_control(parameters=args, player=self.ui))
-                result = r or "Done."
-
-            elif name == "code_helper":
-                r = await asyncio.to_thread(lambda: code_helper(parameters=args, player=self.ui, speak=self.speak))
-                result = r or "Done."
-
-            elif name == "dev_agent":
-                r = await asyncio.to_thread(lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak))
-                result = r or "Done."
-
-            elif name == "agent_task":
-                from agent.task_queue import get_queue, TaskPriority
-                priority_map = {"low": TaskPriority.LOW, "normal": TaskPriority.NORMAL, "high": TaskPriority.HIGH}
-                priority = priority_map.get(args.get("priority", "normal").lower(), TaskPriority.NORMAL)
-                task_id  = get_queue().submit(
-                    goal=args.get("goal", ""),
-                    priority=priority,
-                    speak=self.speak,
-                    immediate=True,
-                )
-                result   = f"Task started (ID: {task_id})."
-
-            elif name == "web_search":
-                r = await asyncio.to_thread(lambda: web_search_action(parameters=args, player=self.ui))
-                result = r or "Done."
-            elif name == "file_processor":
-                if not args.get("file_path") and self.ui.current_file:
-                    args["file_path"] = self.ui.current_file
-                r = await asyncio.to_thread(
-                    lambda: file_processor(parameters=args, player=self.ui, speak=self.speak)
-                )
-                result = r or "Done."
-
-            elif name == "computer_control":
-                r = await asyncio.to_thread(lambda: computer_control(parameters=args, player=self.ui))
-                result = r or "Done."
-
-            elif name == "game_updater":
-                r = await asyncio.to_thread(lambda: game_updater(parameters=args, player=self.ui, speak=self.speak))
-                result = r or "Done."
-
-            elif name == "flight_finder":
-                r = await asyncio.to_thread(lambda: flight_finder(parameters=args, player=self.ui))
-                result = r or "Done."
-
-            elif name == "graphics_quality":
-                quality = str(args.get("quality") or "").strip().lower()
-                if quality not in {"low", "medium", "high"}:
-                    raise ValueError("Graphics quality must be low, medium, or high.")
-                self.ui.set_graphics_quality(quality)
-                result = f"JARVIS graphics quality changed to {quality}."
-
-            elif name == "jarvis_ui_control":
-                action = str(args.get("action") or "").strip().lower()
-                if action == "change_theme":
-                    theme = str(args.get("theme") or "").strip().lower()
-                    allowed = {"arc_reactor", "stealth_red", "vibranium_purple", "nanotech_gold", "platinum"}
-                    if theme not in allowed:
-                        raise ValueError(f"Unknown JARVIS theme: {theme or 'missing'}")
-                    self.ui.set_theme(theme)
-                    result = f"JARVIS theme changed to {theme.replace('_', ' ')}."
-                elif action == "change_graphics_quality":
-                    quality = str(args.get("graphics_quality") or "").strip().lower()
-                    if quality not in {"low", "medium", "high"}:
-                        raise ValueError(f"Unknown graphics quality: {quality or 'missing'}")
-                    self.ui.set_graphics_quality(quality)
-                    result = f"JARVIS graphics quality changed to {quality}."
-                else:
-                    self.ui.handle_ui_command(action)
-                    result = f"JARVIS interface action completed: {action.replace('_', ' ')}."
-
-            elif name == "deep_research":
-                r = request_deep_research(parameters=args, player=self.ui, speak=self.speak)
-                result = r or "Deep research preference requested."
-
-            elif name == "create_presentation":
-                current_file = getattr(self.ui, "current_file", None)
-                supported_sources = {
-                    ".txt", ".md", ".rst", ".csv", ".json", ".jsonl", ".docx", ".pptx",
-                    ".pdf", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp",
-                    ".wav", ".mp3", ".m4a", ".mp4", ".mov", ".avi", ".webm",
-                }
-                if (
-                    not args.get("source_file")
-                    and not args.get("source_files")
-                    and current_file
-                    and Path(str(current_file)).suffix.lower() in supported_sources
-                ):
-                    args["source_files"] = [current_file]
-                r = request_presentation(parameters=args, player=self.ui, speak=self.speak)
-                result = r or "Presentation preference requested."
-
-            elif name == "task_status":
-                from agent.task_queue import get_queue
-
-                queue = get_queue()
-                action = str(args.get("action") or "get").lower()
-                task_id = str(args.get("task_id") or "").strip()
-                if action == "all" or not task_id:
-                    result = json.dumps(queue.get_all_statuses(), ensure_ascii=False)
-                elif action == "cancel":
-                    result = f"Task {task_id} cancelled." if queue.cancel(task_id) else f"Task {task_id} could not be cancelled."
-                else:
-                    status = queue.get_status(task_id)
-                    result = json.dumps(status, ensure_ascii=False) if status else f"Task {task_id} was not found."
-
-            else:
-                result = f"Unknown tool: {name}"
-
-        except Exception as e:
-            tool_ok = False
-            result = f"Tool '{name}' failed: {e}"
-            logger.exception("Unhandled exception")
-            self.speak_error(name, e)
-
-        # Record tool latency (best-effort; never break tool execution)
-        try:
-            metrics.record_tool_call(name=name, ok=tool_ok, latency_s=time.perf_counter() - tool_t0)
-        except Exception:
-            pass
-
-        if not self.ui.muted:
-            self.ui.set_state("LISTENING")
-
-        logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+    if getattr(self.ui, "operational_ready", True) is False:
         return types.FunctionResponse(
-            id=fc.id, name=name,
-            response={"result": result}
+            id=fc.id,
+            name=name,
+            response={"result": "Startup sequence active. Try this action again when JARVIS is ready."},
         )
 
-    async def _execute_tool_batch(self, calls):
-        """Run read-only calls concurrently while preserving mutation order."""
-        mutating = {
-            "send_message", "prepare_message_reply", "email_control", "reminder",
-            "computer_settings", "computer_control", "desktop_control", "file_controller",
-            "file_processor", "code_helper", "dev_agent", "game_updater",
-            "create_presentation", "save_memory", "jarvis_ui_control", "graphics_quality",
-        }
-        call_list = list(calls or [])
-        if any(getattr(call, "name", "") in mutating for call in call_list):
-            return [await self._execute_tool(call) for call in call_list]
-        return list(await asyncio.gather(*(self._execute_tool(call) for call in call_list)))
+    from core.qa_mode import guard_tool_call, qa_block_message
 
+    qa_decision = guard_tool_call(name, args)
+    if not qa_decision.allowed:
+        return types.FunctionResponse(
+            id=fc.id,
+            name=name,
+            response={"result": qa_block_message(qa_decision)},
+        )
+
+    logger.info(f"[JARVIS] 🔧 {name}  {args}")
+    self.ui.set_state("THINKING")
+
+    intercepted = self._intercept_ui_tool_call(name, args)
+    if intercepted is not None:
+        return types.FunctionResponse(
+            id=fc.id,
+            name=name,
+            response={"result": intercepted},
+        )
+
+    # Fase 4 tool execution via registry
+    try:
+        from tools.registry import ToolContext, registry
+
+        tool_ctx = ToolContext(
+            ui=self.ui,
+            speak=self.speak,
+            speak_vision_result=self._speak_vision_result,
+        )
+        tool_result = await registry.execute(name=name, ctx=tool_ctx, args=args)
+        result = tool_result.get("result", "Done.")
+        silent = bool(tool_result.get("silent", False))
+    except Exception as e:
+        result = f"Tool '{name}' failed: {e}"
+        silent = False
+        logger.exception("Unhandled exception")
+        self.speak_error(name, str(e))
+
+    # Record latency (best-effort)
+    try:
+        # Note: latency measurement omitted for simplicity; can be added if needed
+        pass
+    except Exception:
+        pass
+
+    if not self.ui.muted:
+        self.ui.set_state("LISTENING")
+
+    logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+    response = {"result": result}
+    if silent:
+        response["silent"] = True
+
+    return types.FunctionResponse(
+        id=fc.id,
+        name=name,
+        response=response,
+    )
     async def _send_realtime(self):
         while True:
             if self._shutdown_requested.is_set():
@@ -1074,33 +926,15 @@ class JarvisLive:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        logger.info("[JARVIS] 🎤 Mic started")
-        loop = asyncio.get_event_loop()
-
-        def callback(indata, frames, time_info, status):
-            with self._speaking_lock:
-                jarvis_speaking = self._is_speaking
-            if not jarvis_speaking and not self.ui.muted:
-                data = indata.tobytes()
-                loop.call_soon_threadsafe(
-                    self.out_queue.put_nowait,
-                    {"data": data, "mime_type": "audio/pcm"}
-                )
-
-        try:
-            with sd.InputStream(
-                samplerate=get_settings().audio.send_sample_rate,
-                channels=get_settings().audio.channels,
-                dtype="int16",
-                blocksize=get_settings().audio.chunk_size,
-                callback=callback,
-            ):
-                logger.info("[JARVIS] 🎤 Mic stream open")
-                while not self._shutdown_requested.is_set():
-                    await asyncio.sleep(0.1)
-        except Exception as e:
-            logger.info(f"[JARVIS] ❌ Mic: {e}")
-            raise
+        """Legacy method - delegates to audio backend.
+        
+        Kept for backward compatibility. The audio backend's play_loop
+        is now started directly in run().
+        """
+        # Audio input is handled by audio backend's start_input callback
+        # This method is kept for compatibility but does nothing
+        while not self._shutdown_requested.is_set():
+            await asyncio.sleep(1)
 
     async def _receive_audio(self):
         logger.info("[JARVIS] 👂 Recv started")
@@ -1198,63 +1032,23 @@ class JarvisLive:
 
 
 
+    async def _play_audio_delegate(self):
+        """Delegate audio playback to the audio backend.
+
+        This replaces the old _play_audio method. The audio backend's play_loop
+        handles all playback logic including external TTS passthrough.
+        """
+        if self._audio_backend:
+            await self._audio_backend.play_loop()
+        else:
+            logger.warning("[JARVIS] ⚠️ No audio backend, skipping playback")
+
     async def _play_audio(self):
-        logger.info("[JARVIS] 🔊 Play started")
+        """Legacy method - kept for backward compatibility.
 
-        stream = None
-        if not self.external_audio:
-            stream = sd.RawOutputStream(
-                samplerate=get_settings().audio.receive_sample_rate,
-                channels=get_settings().audio.channels,
-                dtype="int16",
-                blocksize=get_settings().audio.chunk_size,
-            )
-            stream.start()
-
-        try:
-            while True:
-                if self._shutdown_requested.is_set():
-                    return
-                try:
-                    _audio_get_t0 = time.perf_counter()
-                    chunk = await asyncio.wait_for(
-                        self.audio_in_queue.get(),
-                        timeout=0.1
-                    )
-                    try:
-                        metrics.record_audio_latency(time.perf_counter() - _audio_get_t0)
-                    except Exception:
-                        pass
-                except asyncio.TimeoutError:
-                    if (
-                        self._turn_done_event
-                        and self._turn_done_event.is_set()
-                        and self.audio_in_queue.empty()
-                    ):
-                        self.set_speaking(False)
-                        self._turn_done_event.clear()
-                        if self._complete_self_quit_after_audio():
-                            return
-                    continue
-                # Skip Gemini audio when external TTS is active
-                if self._tts_engine and self._ext_tts_provider and self._ext_tts_provider != "gemini":
-                    pass  # drain silently
-                else:
-                    self.set_speaking(True)
-                    if self.external_audio:
-                        send_audio = getattr(self.client, "send_audio", None)
-                        if callable(send_audio):
-                            send_audio(chunk, f"audio/pcm;rate={get_settings().audio.receive_sample_rate}")
-                    elif stream is not None:
-                        await asyncio.to_thread(stream.write, chunk)
-        except Exception as e:
-            logger.info(f"[JARVIS] ❌ Play: {e}")
-            raise
-        finally:
-            self.set_speaking(False)
-            if stream is not None:
-                stream.stop()
-                stream.close()
+        Delegates to _play_audio_delegate which uses the audio backend.
+        """
+        await self._play_audio_delegate()
 
     async def run(self):
         api_key = self._api_key or _get_api_key()
@@ -1318,6 +1112,26 @@ class JarvisLive:
                     self.out_queue      = asyncio.Queue(maxsize=10)
                     self._turn_done_event = asyncio.Event()
 
+                    # Initialize audio backend (Phase 5)
+                    if self._audio_backend is None:
+                        self._audio_backend = create_audio_backend(
+                            external_audio=self.external_audio,
+                            speaking_lock=self._speaking_lock,
+                            is_speaking_ref=lambda: self._is_speaking,
+                            set_speaking_cb=self.set_speaking,
+                            muted_cb=lambda: self.ui.muted,
+                            shutdown_event=self._shutdown_requested,
+                            turn_done_event=self._turn_done_event,
+                            audio_in_queue=self.audio_in_queue,
+                            out_queue=self.out_queue,
+                            send_audio_cb=self._send_audio_external,
+                            tts_engine_check=lambda: bool(self._tts_engine and self._ext_tts_provider and self._ext_tts_provider != "gemini"),
+                        )
+
+                    # Start audio backend
+                    await self._audio_backend.start_input(self._on_audio_input)
+                    await self._audio_backend.start_output()
+
                     logger.info("[JARVIS] ✅ Connected.")
                     self.ui.set_state("LISTENING")
                     self.ui.write_log("SYS: JARVIS online.")
@@ -1333,9 +1147,9 @@ class JarvisLive:
 
                     tg.create_task(self._send_realtime())
                     if not self.external_audio:
-                        tg.create_task(self._listen_audio())
+                        tg.create_task(self._audio_backend.play_loop())
                     tg.create_task(self._receive_audio())
-                    tg.create_task(self._play_audio())
+                    tg.create_task(self._play_audio_delegate())
                     tg.create_task(self._announce_startup())
 
             except Exception as e:
