@@ -1519,6 +1519,9 @@ class JarvisLive:
 
         result = "Done."
 
+        tool_t0 = time.perf_counter()
+        tool_ok = True
+
         try:
             if name == "open_app":
                 r = await asyncio.to_thread(lambda: open_app(parameters=args, response=None, player=self.ui))
@@ -1706,9 +1709,16 @@ class JarvisLive:
                 result = f"Unknown tool: {name}"
 
         except Exception as e:
+            tool_ok = False
             result = f"Tool '{name}' failed: {e}"
             logger.exception("Unhandled exception")
             self.speak_error(name, e)
+
+        # Record tool latency (best-effort; never break tool execution)
+        try:
+            metrics.record_tool_call(name=name, ok=tool_ok, latency_s=time.perf_counter() - tool_t0)
+        except Exception:
+            pass
 
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
