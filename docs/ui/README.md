@@ -5,7 +5,7 @@
 - Repositório: [anonymandk/jarvis](https://github.com/anonymandk/jarvis)
 - Notion: [JARVIS — UI Display](https://app.notion.com/p/3ea9a662a0c5817fa9deed59994abbde?pvs=204)
 - Figma: sem link de arquivo. A conta conectada está no assento **View**; nenhum arquivo foi criado nem alterado.
-- PR: será associado ao concluir a publicação da branch **feat/ui-display**.
+- PR: [docs: add JARVIS UI display specification](https://github.com/anonymandk/jarvis/pull/1).
 
 ## Entrega
 
