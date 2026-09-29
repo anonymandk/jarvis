@@ -1,6 +1,9 @@
 """Simple in-process metrics collector for JARVIS.
 
 No external dependencies required.
+
+This module intentionally keeps the surface area small so it can be used
+from performance-sensitive audio loops without heavy locking.
 """
 
 from __future__ import annotations
@@ -46,10 +49,11 @@ class MetricsCollector:
             self.tool_calls[name] = m
         m.record(ok=ok, latency_s=latency_s)
 
-    def record_reconnect_attempt(self, ok: bool) -> None:
+    def record_reconnect_attempt(self) -> None:
         self.live_reconnect_attempts += 1
-        if ok:
-            self.live_reconnect_success += 1
+
+    def record_reconnect_success(self) -> None:
+        self.live_reconnect_success += 1
 
     def record_audio_latency(self, latency_s: float) -> None:
         self.audio_loop_latency_s_total += float(latency_s)
@@ -82,6 +86,7 @@ metrics = MetricsCollector()
 class Timer:
     def __init__(self) -> None:
         self._t0: Optional[float] = None
+        self._t1: Optional[float] = None
 
     def __enter__(self):
         self._t0 = time.perf_counter()
@@ -92,6 +97,6 @@ class Timer:
 
     @property
     def elapsed_s(self) -> float:
-        if self._t0 is None:
+        if self._t0 is None or self._t1 is None:
             return 0.0
-        return time.perf_counter() - self._t0
+        return self._t1 - self._t0
