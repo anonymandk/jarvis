@@ -5,6 +5,11 @@ import threading
 import json
 import sys
 import traceback
+import logging
+import random
+
+from observability.logging import setup_logging
+from observability.metrics import metrics, Timer
 from pathlib import Path
 
 import sounddevice as sd
@@ -20,6 +25,8 @@ import importlib
 import time
 
 from core.live_model import pick_live_model
+
+logger = logging.getLogger("jarvis")
 
 
 def _lazy_action(module_name: str, attribute: str):
@@ -164,14 +171,14 @@ def wait_for_startup_claps(
 ) -> bool:
     """Hold startup until two distinct claps are heard by the default microphone."""
     if os.environ.get("JARVIS_SKIP_CLAP_GATE", "").strip().lower() in {"1", "true", "yes", "on"}:
-        print("[JARVIS] 👏 Startup clap gate bypassed (JARVIS_SKIP_CLAP_GATE).")
+        logger.info("[JARVIS] 👏 Startup clap gate bypassed (JARVIS_SKIP_CLAP_GATE).")
         return True
     # Some macOS/AUHAL configurations expose a nominal input device but reject
     # every PortAudio operation (PaErrorCode -9986). Avoid repeatedly starting
     # a failing Core Audio stream; users with a working mic can opt in.
     if sys.platform == "darwin" and stream_factory is None and os.environ.get("JARVIS_ENABLE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-        print("[JARVIS] ⚠️ macOS microphone gate disabled for this audio configuration.")
-        print("[JARVIS] Continuing without clap startup. Set JARVIS_ENABLE_CLAP_GATE=1 to force it.")
+        logger.info("[JARVIS] ⚠️ macOS microphone gate disabled for this audio configuration.")
+        logger.info("[JARVIS] Continuing without clap startup. Set JARVIS_ENABLE_CLAP_GATE=1 to force it.")
         return True
 
     required = max(1, int(required))
@@ -179,7 +186,7 @@ def wait_for_startup_claps(
     try:
         import numpy as np
     except ImportError:
-        print("[JARVIS] ❌ Startup clap gate needs numpy. Set JARVIS_SKIP_CLAP_GATE=1 to bypass.")
+        logger.info("[JARVIS] ❌ Startup clap gate needs numpy. Set JARVIS_SKIP_CLAP_GATE=1 to bypass.")
         return False
 
     clap_times: list[float] = []
@@ -195,7 +202,7 @@ def wait_for_startup_claps(
     def callback(indata, frames, time_info, status):
         nonlocal last_clap_at, noise_floor, clap_times
         if status:
-            print(f"[JARVIS] ⚠️ Clap mic: {status}")
+            logger.info(f"[JARVIS] ⚠️ Clap mic: {status}")
         samples = np.asarray(indata, dtype=np.float32).reshape(-1)
         if samples.size == 0:
             return
@@ -226,11 +233,11 @@ def wait_for_startup_claps(
             clap_times = []
         clap_times.append(now)
         last_clap_at = now
-        print(f"[JARVIS] 👏 Clap {len(clap_times)}/{required} detected")
+        logger.info(f"[JARVIS] 👏 Clap {len(clap_times)}/{required} detected")
         if len(clap_times) >= required:
             finished.set()
 
-    print(f"[JARVIS] 👏 Waiting for {required} claps to power up...")
+    logger.info(f"[JARVIS] 👏 Waiting for {required} claps to power up...")
     # PortAudio on macOS commonly rejects 16 kHz even when the microphone is
     # available (PaErrorCode -9986). Prefer the device's native rate, then
     # retry standard rates before reporting that the microphone is unavailable.
@@ -245,9 +252,9 @@ def wait_for_startup_claps(
                 except (TypeError, IndexError, ValueError):
                     input_index = -1
                 if input_index < 0:
-                    print("[JARVIS] ⚠️ macOS reports no default microphone device.")
+                    logger.info("[JARVIS] ⚠️ macOS reports no default microphone device.")
                     if os.environ.get("JARVIS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-                        print("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+                        logger.info("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
                         return True
                     raise RuntimeError("no default microphone device")
                 input_device = input_index
@@ -284,7 +291,7 @@ def wait_for_startup_claps(
                 ):
                     while not finished.wait(0.05):
                         if timeout is not None and time.monotonic() - started_at >= timeout:
-                            print("[JARVIS] ⏱️ Startup clap gate timed out.")
+                            logger.info("[JARVIS] ⏱️ Startup clap gate timed out.")
                             return False
                 break
             except Exception as exc:
@@ -294,18 +301,18 @@ def wait_for_startup_claps(
         else:
             raise last_error or RuntimeError("no compatible microphone sample rate")
     except KeyboardInterrupt:
-        print("\n[JARVIS] Startup cancelled.")
+        logger.info("\n[JARVIS] Startup cancelled.")
         return False
     except Exception as exc:
-        print(f"[JARVIS] ❌ Startup clap microphone unavailable: {exc}")
+        logger.info(f"[JARVIS] ❌ Startup clap microphone unavailable: {exc}")
         if os.environ.get("JARVIS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-            print("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
-            print("[JARVIS] Restore microphone access to use voice input.")
+            logger.info("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+            logger.info("[JARVIS] Restore microphone access to use voice input.")
             return True
-        print("[JARVIS] Clap gate required. Set JARVIS_SKIP_CLAP_GATE=1 to bypass it.")
+        logger.info("[JARVIS] Clap gate required. Set JARVIS_SKIP_CLAP_GATE=1 to bypass it.")
         return False
 
-    print("[JARVIS] ⚡ Two claps detected. Powering up...")
+    logger.info("[JARVIS] ⚡ Two claps detected. Powering up...")
     return True
 
 def _get_api_key() -> str:
@@ -1323,7 +1330,7 @@ class JarvisLive:
             if out_queue is not None:
                 out_queue.put_nowait(None)
         except Exception as exc:
-            print(f"[JARVIS] ⚠️ Shutdown session close failed: {exc}")
+            logger.info(f"[JARVIS] ⚠️ Shutdown session close failed: {exc}")
 
     def set_tour_active(self, active: bool) -> None:
         """Track whether the desktop introduction temporarily owns the UI."""
@@ -1368,7 +1375,7 @@ class JarvisLive:
             try:
                 asyncio.run_coroutine_threadsafe(self.session.close(), self._loop)
             except Exception as e:
-                print(f"[JARVIS] ⚠️ Could not close session after voice change: {e}")
+                logger.info(f"[JARVIS] ⚠️ Could not close session after voice change: {e}")
 
     def _get_current_voice(self) -> str:
         if getattr(self, "voice_name", None):
@@ -1403,7 +1410,7 @@ class JarvisLive:
                 turn_complete=True,
             )
         except Exception as e:
-            print(f"[JARVIS] ⚠️ Greeting failed: {e}")
+            logger.info(f"[JARVIS] ⚠️ Greeting failed: {e}")
 
     def _build_config(self) -> types.LiveConnectConfig:
         from datetime import datetime
@@ -1487,7 +1494,7 @@ class JarvisLive:
                 response={"result": qa_block_message(qa_decision)},
             )
 
-        print(f"[JARVIS] 🔧 {name}  {args}")
+        logger.info(f"[JARVIS] 🔧 {name}  {args}")
         self.ui.set_state("THINKING")
 
         intercepted = self._intercept_ui_tool_call(name, args)
@@ -1502,7 +1509,7 @@ class JarvisLive:
             value    = args.get("value", "")
             if key and value:
                 update_memory({category: {key: {"value": value}}})
-                print(f"[Memory] 💾 save_memory: {category}/{key} = {value}")
+                logger.info(f"[Memory] 💾 save_memory: {category}/{key} = {value}")
             if not self.ui.muted:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
@@ -1700,13 +1707,13 @@ class JarvisLive:
 
         except Exception as e:
             result = f"Tool '{name}' failed: {e}"
-            traceback.print_exc()
+            logger.exception("Unhandled exception")
             self.speak_error(name, e)
 
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
 
-        print(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+        logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
         return types.FunctionResponse(
             id=fc.id, name=name,
             response={"result": result}
@@ -1735,7 +1742,7 @@ class JarvisLive:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        print("[JARVIS] 🎤 Mic started")
+        logger.info("[JARVIS] 🎤 Mic started")
         loop = asyncio.get_event_loop()
 
         def callback(indata, frames, time_info, status):
@@ -1756,15 +1763,15 @@ class JarvisLive:
                 blocksize=get_settings().audio.chunk_size,
                 callback=callback,
             ):
-                print("[JARVIS] 🎤 Mic stream open")
+                logger.info("[JARVIS] 🎤 Mic stream open")
                 while not self._shutdown_requested.is_set():
                     await asyncio.sleep(0.1)
         except Exception as e:
-            print(f"[JARVIS] ❌ Mic: {e}")
+            logger.info(f"[JARVIS] ❌ Mic: {e}")
             raise
 
     async def _receive_audio(self):
-        print("[JARVIS] 👂 Recv started")
+        logger.info("[JARVIS] 👂 Recv started")
         out_buf, in_buf = [], []
         _new_turn = True
         turn_had_audio = False
@@ -1842,7 +1849,7 @@ class JarvisLive:
                     if response.tool_call:
                         function_calls = list(response.tool_call.function_calls)
                         for fc in function_calls:
-                            print(f"[JARVIS] 📞 {fc.name}")
+                            logger.info(f"[JARVIS] 📞 {fc.name}")
                         fn_responses = await self._execute_tool_batch(function_calls)
                         await self.session.send_tool_response(
                             function_responses=fn_responses
@@ -1851,16 +1858,16 @@ class JarvisLive:
                         return
         except Exception as e:
             if isinstance(e, genai.errors.APIError) and "1000" in str(e):
-                print("[JARVIS] 🔌 Session closed normally.")
+                logger.info("[JARVIS] 🔌 Session closed normally.")
                 return
-            print(f"[JARVIS] ❌ Recv: {e}")
-            traceback.print_exc()
+            logger.info(f"[JARVIS] ❌ Recv: {e}")
+            logger.exception("Unhandled exception")
             raise
 
 
 
     async def _play_audio(self):
-        print("[JARVIS] 🔊 Play started")
+        logger.info("[JARVIS] 🔊 Play started")
 
         stream = None
         if not self.external_audio:
@@ -1904,7 +1911,7 @@ class JarvisLive:
                     elif stream is not None:
                         await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
-            print(f"[JARVIS] ❌ Play: {e}")
+            logger.info(f"[JARVIS] ❌ Play: {e}")
             raise
         finally:
             self.set_speaking(False)
@@ -1930,7 +1937,7 @@ class JarvisLive:
             if self.runtime_limit_seconds is not None:
                 elapsed = time.time() - start_time
                 if elapsed >= float(self.runtime_limit_seconds):
-                    print(f"[JARVIS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
+                    logger.info(f"[JARVIS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
                     try:
                         jarvis_status.write_status({"state": "expired"})
                     except Exception:
@@ -1942,23 +1949,23 @@ class JarvisLive:
                 try:
                     path = Path(self.required_unlock_path)
                     if not path.exists():
-                        print(f"[JARVIS] 🔒 Required unlock path not present: {self.required_unlock_path}")
-                        print("Please mount the locked container (see scripts/create_locked_dmg.sh).")
+                        logger.info(f"[JARVIS] 🔒 Required unlock path not present: {self.required_unlock_path}")
+                        logger.info("Please mount the locked container (see scripts/create_locked_dmg.sh).")
                         time.sleep(5)
                         continue
                     if self.required_unlock_secret is not None:
                         content = path.read_text(encoding="utf-8").strip()
                         if content != self.required_unlock_secret:
-                            print("[JARVIS] 🔒 unlock.key content does not match expected secret.")
-                            print("Please mount the locked container with the correct unlock.key file.")
+                            logger.info("[JARVIS] 🔒 unlock.key content does not match expected secret.")
+                            logger.info("Please mount the locked container with the correct unlock.key file.")
                             time.sleep(5)
                             continue
                 except Exception as e:
-                    print(f"[JARVIS] 🔒 Locked path check error: {e}")
+                    logger.info(f"[JARVIS] 🔒 Locked path check error: {e}")
                     time.sleep(1)
                     continue
             try:
-                print("[JARVIS] 🔌 Connecting...")
+                logger.info("[JARVIS] 🔌 Connecting...")
                 self.ui.set_state("THINKING")
                 config = self._build_config()
 
@@ -1972,7 +1979,7 @@ class JarvisLive:
                     self.out_queue      = asyncio.Queue(maxsize=10)
                     self._turn_done_event = asyncio.Event()
 
-                    print("[JARVIS] ✅ Connected.")
+                    logger.info("[JARVIS] ✅ Connected.")
                     self.ui.set_state("LISTENING")
                     self.ui.write_log("SYS: JARVIS online.")
                     if not self.cloud_safe:
@@ -2005,7 +2012,7 @@ class JarvisLive:
                     self.ui.write_log(
                         f"SYS: Voice '{old_voice}' not available. Falling back to {DEFAULT_VOICE_NAME}."
                     )
-                    print(f"[JARVIS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
+                    logger.info(f"[JARVIS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
                     self.ui.sync_voice_display(DEFAULT_VOICE_NAME)
                     if not self.cloud_safe:
                         try:
@@ -2013,15 +2020,15 @@ class JarvisLive:
                         except Exception:
                             pass
                 elif isinstance(actual, genai.errors.APIError) and "1000" in str(actual):
-                    print("[JARVIS] 🔌 Session ended normally.")
+                    logger.info("[JARVIS] 🔌 Session ended normally.")
                     if not self.cloud_safe:
                         try:
                             jarvis_status.write_status({"state": "offline"})
                         except Exception:
                             pass
                 else:
-                    print(f"[JARVIS] ⚠️ {e}")
-                    traceback.print_exc()
+                    logger.info(f"[JARVIS] ⚠️ {e}")
+                    logger.exception("Unhandled exception")
 
 def main():
     import sys
@@ -2036,16 +2043,16 @@ def main():
     running_as_app = getattr(sys, "frozen", False)
 
     if os.environ.get("JARVIS_CLI") != "1" and not running_as_app:
-        print("[JARVIS] Please launch with the JARVIS CLI: jarvis")
+        logger.info("[JARVIS] Please launch with the JARVIS CLI: jarvis")
         return
     if not wait_for_startup_claps():
         return
-    print("[JARVIS] ⚡ Powering up the interface...")
+    logger.info("[JARVIS] ⚡ Powering up the interface...")
     try:
         ui = JarvisUI("face.png")
     except Exception as exc:
-        print(f"[JARVIS] ❌ Interface startup failed: {exc}")
-        traceback.print_exc()
+        logger.info(f"[JARVIS] ❌ Interface startup failed: {exc}")
+        logger.exception("Unhandled exception")
         return
 
     def runner():
@@ -2100,15 +2107,15 @@ def main():
                     try:
                         asyncio.run_coroutine_threadsafe(jarvis.session.close(), jarvis._loop)
                     except Exception as e:
-                        print(f"[JARVIS] Could not close session: {e}")
+                        logger.info(f"[JARVIS] Could not close session: {e}")
         ui.on_tts_provider_change = _on_tts_change
         try:
             asyncio.run(jarvis.run())
         except KeyboardInterrupt:
-            print("\n🔴 Shutting down...")
+            logger.info("\n🔴 Shutting down...")
         except Exception as exc:
             message = f"Gemini startup failed: {str(exc)[:180]}"
-            print(f"[JARVIS] ❌ {message}")
+            logger.info(f"[JARVIS] ❌ {message}")
             try:
                 ui.write_log(f"ERR: {message}")
                 ui.set_state("LISTENING")
@@ -2116,9 +2123,9 @@ def main():
                 pass
 
     threading.Thread(target=runner, daemon=True).start()
-    print("[JARVIS] ✅ Interface ready.")
+    logger.info("[JARVIS] ✅ Interface ready.")
     ui.root.mainloop()
-    print("[JARVIS] Interface closed.")
+    logger.info("[JARVIS] Interface closed.")
 
 def cli_main():
     """Canonical console entry point installed as the `jarvis` command."""
