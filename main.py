@@ -1930,6 +1930,7 @@ class JarvisLive:
         self.ui.write_log(f"SYS: Gemini Live model selected: {live_model_id}")
 
         start_time = time.time()
+        reconnect_attempt = 0
         while True:
             if self._shutdown_requested.is_set():
                 return
@@ -1965,6 +1966,7 @@ class JarvisLive:
                     time.sleep(1)
                     continue
             try:
+                reconnect_attempt += 1
                 logger.info("[JARVIS] 🔌 Connecting...")
                 self.ui.set_state("THINKING")
                 config = self._build_config()
@@ -2027,6 +2029,29 @@ class JarvisLive:
                         except Exception:
                             pass
                 else:
+                    # Optional provider resilience: transient connection errors can be
+                    # retried with backoff/jitter. By default, backoff is disabled to
+                    # preserve existing reconnect timing.
+                    if _is_transient_live_connection_error(actual):
+                        try:
+                            if get_settings().runtime.reconnect_backoff_enabled:
+                                metrics.record_reconnect_attempt()
+                                delay = _live_reconnect_delay(reconnect_attempt)
+                                jitter_ratio = float(get_settings().runtime.reconnect_jitter_ratio or 0.0)
+                                if jitter_ratio > 0:
+                                    jitter = (random.random() * 2.0 - 1.0) * jitter_ratio * delay
+                                    delay = max(0.0, delay + jitter)
+                                max_attempts = int(get_settings().runtime.reconnect_max_attempts or 0)
+                                if max_attempts > 0 and reconnect_attempt > max_attempts:
+                                    logger.info("[JARVIS] Reconnect attempts limit reached; exiting")
+                                    os._exit(0)
+                                logger.info(f"[JARVIS] Transient error; retrying in {delay:.2f}s (attempt {reconnect_attempt})")
+                                await self._wait_before_reconnect(delay)
+                                continue
+                        except Exception:
+                            # Never break the main loop due to metrics/backoff logic.
+                            pass
+
                     logger.info(f"[JARVIS] ⚠️ {e}")
                     logger.exception("Unhandled exception")
 
