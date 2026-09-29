@@ -15,6 +15,7 @@ from core.jarvis_client import JarvisClient
 from memory.memory_manager import (
     load_memory, update_memory, format_memory_for_prompt,
 )
+from config.settings import get_settings
 import importlib
 import time
 
@@ -79,17 +80,17 @@ BASE_DIR        = get_base_dir()
 _load_dotenv()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 PROMPT_PATH     = BASE_DIR / "core" / "prompt.txt"
-CHANNELS            = 1
-SEND_SAMPLE_RATE    = 16000
+get_settings().audio.channels            = 1
+get_settings().audio.send_sample_rate    = 16000
 SUPPORTED_VOICE_NAMES = {
     "puck", "charon", "kore", "fenrir", "aoede",
     "leda", "orus", "schedar", "zubenelgenubi"
 }
 DEFAULT_VOICE_NAME   = "puck"
 
-RECEIVE_SAMPLE_RATE = 24000
-CHUNK_SIZE          = 1024
-LIVE_VAD_SILENCE_MS = 200
+get_settings().audio.receive_sample_rate = 24000
+get_settings().audio.chunk_size          = 1024
+get_settings().audio.vad_silence_ms = 200
 STARTUP_CLAPS_REQUIRED = 2
 STARTUP_CLAP_MAX_GAP_SECONDS = 4.0
 STARTUP_CLAP_COOLDOWN_SECONDS = 0.22
@@ -233,7 +234,7 @@ def wait_for_startup_claps(
     # PortAudio on macOS commonly rejects 16 kHz even when the microphone is
     # available (PaErrorCode -9986). Prefer the device's native rate, then
     # retry standard rates before reporting that the microphone is unavailable.
-    sample_rates = [SEND_SAMPLE_RATE, 44100, 48000]
+    sample_rates = [get_settings().audio.send_sample_rate, 44100, 48000]
     input_device = None
     try:
         if stream_factory is sd.InputStream:
@@ -269,13 +270,13 @@ def wait_for_startup_claps(
                     sd.check_input_settings(
                         device=input_device,
                         samplerate=sample_rate,
-                        channels=CHANNELS,
+                        channels=get_settings().audio.channels,
                         dtype="float32",
                     )
                 with stream_factory(
                     samplerate=sample_rate,
                     device=input_device,
-                    channels=CHANNELS,
+                    channels=get_settings().audio.channels,
                     dtype="float32",
                     blocksize=0,
                     latency="high",
@@ -308,11 +309,12 @@ def wait_for_startup_claps(
     return True
 
 def _get_api_key() -> str:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
+    """Get Gemini API key from settings (env or config)."""
+    settings = get_settings()
+    key = settings.llm.gemini_api_key
+    if not key:
         raise ValueError("GEMINI_API_KEY environment variable not set. Please set it to your Gemini API key.")
-    return api_key
-
+    return key
 
 def _normalize_voice_name(voice_name: str | None) -> str:
     if not voice_name:
@@ -332,15 +334,8 @@ def _is_unsupported_voice_error(exc: Exception) -> bool:
 
 
 def _load_voice_name() -> str:
-    voice = os.environ.get("GEMINI_VOICE_NAME")
-    if voice:
-        return _normalize_voice_name(voice)
-    try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            return _normalize_voice_name(json.load(f).get("voice_name"))
-    except Exception:
-        return DEFAULT_VOICE_NAME
-
+    """Get voice name from settings (env or config)."""
+    return get_settings().voice.name or DEFAULT_VOICE_NAME
 
 def _load_system_prompt() -> str:
     try:
@@ -1446,7 +1441,7 @@ class JarvisLive:
                 automatic_activity_detection=types.AutomaticActivityDetection(
                     start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
                     end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
-                    silence_duration_ms=LIVE_VAD_SILENCE_MS,
+                    silence_duration_ms=get_settings().audio.vad_silence_ms,
                 )
             ),
             thinking_config=types.ThinkingConfig(thinking_budget=0),
@@ -1755,10 +1750,10 @@ class JarvisLive:
 
         try:
             with sd.InputStream(
-                samplerate=SEND_SAMPLE_RATE,
-                channels=CHANNELS,
+                samplerate=get_settings().audio.send_sample_rate,
+                channels=get_settings().audio.channels,
                 dtype="int16",
-                blocksize=CHUNK_SIZE,
+                blocksize=get_settings().audio.chunk_size,
                 callback=callback,
             ):
                 print("[JARVIS] 🎤 Mic stream open")
@@ -1870,10 +1865,10 @@ class JarvisLive:
         stream = None
         if not self.external_audio:
             stream = sd.RawOutputStream(
-                samplerate=RECEIVE_SAMPLE_RATE,
-                channels=CHANNELS,
+                samplerate=get_settings().audio.receive_sample_rate,
+                channels=get_settings().audio.channels,
                 dtype="int16",
-                blocksize=CHUNK_SIZE,
+                blocksize=get_settings().audio.chunk_size,
             )
             stream.start()
 
@@ -1905,7 +1900,7 @@ class JarvisLive:
                     if self.external_audio:
                         send_audio = getattr(self.client, "send_audio", None)
                         if callable(send_audio):
-                            send_audio(chunk, f"audio/pcm;rate={RECEIVE_SAMPLE_RATE}")
+                            send_audio(chunk, f"audio/pcm;rate={get_settings().audio.receive_sample_rate}")
                     elif stream is not None:
                         await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
