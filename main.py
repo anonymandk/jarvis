@@ -151,6 +151,25 @@ def _live_reconnect_delay(attempt: int) -> float:
     return min(30.0, float(2 ** max(0, int(attempt) - 1)))
 
 
+def _compute_jitter_delay(
+    base_delay_s: float,
+    jitter_ratio: float,
+    *,
+    rand_fn=None,
+) -> float:
+    """Apply jitter to a base delay.
+
+    rand_fn is injectable for tests; if omitted it uses random.random.
+    """
+    if jitter_ratio <= 0:
+        return float(base_delay_s)
+    if rand_fn is None:
+        rand_fn = random.random
+    # Convert [0,1) to (-1, +1)
+    jitter = (float(rand_fn()) * 2.0 - 1.0) * float(jitter_ratio) * float(base_delay_s)
+    return max(0.0, float(base_delay_s) + jitter)
+
+
 def _live_response_audio_bytes(response) -> bytes | None:
     server_content = getattr(response, "server_content", None)
     model_turn = getattr(server_content, "model_turn", None)
@@ -2054,8 +2073,11 @@ class JarvisLive:
                                 delay = _live_reconnect_delay(reconnect_attempt)
                                 jitter_ratio = float(get_settings().runtime.reconnect_jitter_ratio or 0.0)
                                 if jitter_ratio > 0:
-                                    jitter = (random.random() * 2.0 - 1.0) * jitter_ratio * delay
-                                    delay = max(0.0, delay + jitter)
+                                    delay = _compute_jitter_delay(
+                                        delay,
+                                        jitter_ratio,
+                                        rand_fn=random.random,
+                                    )
                                 max_attempts = int(get_settings().runtime.reconnect_max_attempts or 0)
                                 if max_attempts > 0 and reconnect_attempt > max_attempts:
                                     logger.info("[JARVIS] Reconnect attempts limit reached; exiting")
