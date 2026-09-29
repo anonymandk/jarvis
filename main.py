@@ -1522,6 +1522,38 @@ class JarvisLive:
                 id=fc.id, name=name, response={"result": intercepted}
             )
 
+        # Fase 4 tool execution via registry (thin adapter modules).
+        try:
+            from tools.registry import ToolContext, registry
+
+            tool_ctx = ToolContext(
+                ui=self.ui,
+                speak=self.speak,
+                speak_vision_result=self._speak_vision_result,
+            )
+            tool_result = await registry.execute(name=name, ctx=tool_ctx, args=args)
+            result = tool_result.get("result", "Done.")
+            silent = bool(tool_result.get("silent", False))
+        except Exception as e:
+            result = f"Tool '{name}' failed: {e}"
+            silent = False
+            logger.exception("Unhandled exception")
+            self.speak_error(name, str(e))
+
+        if not self.ui.muted:
+            self.ui.set_state("LISTENING")
+
+        logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+        response = {"result": result}
+        if silent:
+            response["silent"] = True
+
+        return types.FunctionResponse(
+            id=fc.id,
+            name=name,
+            response=response,
+        )
+
         if name == "save_memory":
             category = args.get("category", "notes")
             key      = args.get("key", "")
