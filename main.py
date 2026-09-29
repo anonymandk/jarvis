@@ -15,7 +15,6 @@ from core.jarvis_client import JarvisClient
 from memory.memory_manager import (
     load_memory, update_memory, format_memory_for_prompt,
 )
-import hashlib
 import importlib
 import time
 
@@ -80,7 +79,6 @@ BASE_DIR        = get_base_dir()
 _load_dotenv()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 PROMPT_PATH     = BASE_DIR / "core" / "prompt.txt"
-LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 CHANNELS            = 1
 SEND_SAMPLE_RATE    = 16000
 SUPPORTED_VOICE_NAMES = {
@@ -1109,14 +1107,6 @@ CLOUD_SAFE_ACTIONS = frozenset({
     "youtube_video",
 })
 
-LOCAL_MACHINE_ONLY_ACTIONS = frozenset({
-    "computer_control",
-    "open_app",
-    "file_controller",
-    "media_control",
-    "desktop_control",
-    "computer_settings",
-})
 
 
 def get_tool_declarations(*, cloud_safe: bool = False) -> list[dict]:
