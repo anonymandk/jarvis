@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 from core.qa_report import Finding
@@ -20,6 +21,23 @@ EXPECTED_TOOLS = {
 
 
 def declared_tools(main_path: Path) -> list[str]:
+    """Get declared tool names from the tool registry.
+
+    Falls back to AST parsing of main.py for backward compatibility.
+    """
+    # Try to get from registry first (new architecture)
+    try:
+        # Add project root to path if needed
+        project_root = main_path.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        from tools.registry import registry
+        registry._internal_discover()
+        return sorted(registry._declarations.keys())
+    except Exception:
+        pass
+
+    # Fallback: parse main.py for TOOL_DECLARATIONS (old architecture)
     tree = ast.parse(main_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):

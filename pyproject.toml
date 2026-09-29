@@ -15,4 +15,4 @@ jarvis = "main:cli_main"
 py-modules = ["main", "ui"]
 
 [tool.setuptools.packages.find]
-include = ["actions*", "agent*", "api*", "awareness*", "config*", "core*", "memory*"]
+include = ["actions*", "agent*", "api*", "awareness*", "audio*", "config*", "core*", "llm_providers*", "memory*", "observability*", "tools*", "plugins*"]

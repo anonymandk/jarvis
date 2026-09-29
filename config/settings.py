@@ -47,6 +47,7 @@ class AudioSettings(BaseSettings):
     receive_sample_rate: int = 24000
     chunk_size: int = 1024
     vad_silence_ms: int = 200
+    backend: Literal["auto", "sounddevice", "dummy"] = "auto"
 
     class Config:
         env_prefix = "JARVIS_AUDIO_"
