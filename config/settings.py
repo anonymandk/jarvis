@@ -68,7 +68,9 @@ class RuntimeSettings(BaseSettings):
 
     # Live reconnection/backoff (provider errors)
     # Only applied when the connection error is classified as transient.
-    reconnect_max_attempts: int = 8
+    # 0 means unlimited retries (matches prior behavior of reconnecting forever)
+    reconnect_max_attempts: int = 0
+    # Fractional jitter applied on top of the base exponential delay
     reconnect_jitter_ratio: float = 0.15
     # Limit jitter absolute added delay to this fraction of base delay.
     # Set 0 to disable jitter entirely (keeps deterministic delay).
