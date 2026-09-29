@@ -1,0 +1,10 @@
+flowchart LR
+    JL["JarvisLive<br>Gemini Live + tools"] --> JC["JarvisClient<br>protocolo atual"]
+    JC --> D["JarvisUI / Qt signals<br>cliente desktop"]
+    JC --> W["WebSocketClient<br>adapter API"]
+    W --> API["FastAPI WebSocket<br>status, transcript, message, progress"]
+    API --> WEB["Cliente web"]
+    JC -. "mapper de apresentação proposto" .-> EVT["UiEvent v1"]
+    EVT --> HUD["HUD display<br>apenas renderiza"]
+    HUD -. "comandos autorizados" .-> JC
+
