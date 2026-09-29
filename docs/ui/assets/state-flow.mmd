@@ -1,0 +1,16 @@
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Listening: sessão conectada
+    Listening --> Processing: turno recebido
+    Processing --> Speaking: resposta pronta
+    Speaking --> Listening: áudio concluído
+    Processing --> Error: falha
+    Speaking --> Error: falha de áudio
+    Listening --> Reconnecting: conexão perdida
+    Processing --> Reconnecting: conexão perdida
+    Speaking --> Reconnecting: conexão perdida
+    Reconnecting --> Listening: reconectou
+    Reconnecting --> Error: limite excedido
+    Error --> Reconnecting: tentar novamente
+    Error --> Idle: encerrar sessão
+
