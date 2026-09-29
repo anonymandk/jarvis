@@ -1884,10 +1884,15 @@ class JarvisLive:
                 if self._shutdown_requested.is_set():
                     return
                 try:
+                    _audio_get_t0 = time.perf_counter()
                     chunk = await asyncio.wait_for(
                         self.audio_in_queue.get(),
                         timeout=0.1
                     )
+                    try:
+                        metrics.record_audio_latency(time.perf_counter() - _audio_get_t0)
+                    except Exception:
+                        pass
                 except asyncio.TimeoutError:
                     if (
                         self._turn_done_event
