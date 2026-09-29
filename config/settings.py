@@ -66,6 +66,13 @@ class RuntimeSettings(BaseSettings):
     required_unlock_path: Optional[str] = None
     required_unlock_secret: Optional[str] = None
 
+    # Live reconnection/backoff (provider errors)
+    # Only applied when the connection error is classified as transient.
+    reconnect_max_attempts: int = 8
+    reconnect_jitter_ratio: float = 0.15
+    # Limit jitter absolute added delay to this fraction of base delay.
+    # Set 0 to disable jitter entirely (keeps deterministic delay).
+
     class Config:
         env_prefix = "JARVIS_RUNTIME_"
 
