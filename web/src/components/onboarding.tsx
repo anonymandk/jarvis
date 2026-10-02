@@ -32,30 +32,30 @@ export function Onboarding({ user, onComplete, onSignOut }: { user: User; onComp
     <main className="onboarding-shell">
       <header className="onboarding-header">
         <div className="wordmark"><span className="wordmark-mark">J</span> JARVIS</div>
-        <button className="text-button" onClick={onSignOut}>Use another account</button>
+        <button className="text-button" onClick={onSignOut}>Usar outra conta</button>
       </header>
-      <section className="onboarding-sequence">
-        <div className="sequence-rail" aria-label="Setup progress">
-          <div className="sequence-step complete"><span><Check size={14} /></span><div><b>Identity</b><small>{user.email}</small></div></div>
+      <section className="onboarding-sequence" lang="pt-BR">
+        <div className="sequence-rail" aria-label="Progresso da configuração">
+          <div className="sequence-step complete"><span><Check size={14} /></span><div><b>Identidade</b><small>{user.email}</small></div></div>
           <div className="sequence-line" />
-          <div className="sequence-step active"><span>02</span><div><b>Gemini Live</b><small>Private model access</small></div></div>
+          <div className="sequence-step active"><span>02</span><div><b>Gemini Live</b><small>Acesso privado ao modelo</small></div></div>
         </div>
         <div className="key-stage">
-          <p className="section-index">INITIALIZATION / 02</p>
+          <p className="section-index">CONFIGURAÇÃO / 02</p>
           <KeyRound className="stage-icon" size={28} />
-          <h1>Connect your intelligence layer.</h1>
+          <h1>Conecte sua camada de inteligência.</h1>
           <p>
-            JARVIS uses your Gemini API key for live voice and reasoning. The key is encrypted at rest and never returned to the browser.
+            O JARVIS usa sua chave de API do Gemini para voz e raciocínio ao vivo. A chave é criptografada ao ser armazenada e nunca retorna ao navegador.
           </p>
           <form onSubmit={submit} className="key-form">
-            <label>Gemini API key<Input name="api_key" type="password" autoComplete="off" required minLength={20} placeholder="Paste the key from Google AI Studio" /></label>
+            <label>Chave de API do Gemini<Input name="api_key" type="password" autoComplete="off" required minLength={20} placeholder="Cole a chave do Google AI Studio" /></label>
             {error && <p className="form-error" role="alert">{error}</p>}
             <Button disabled={pending} type="submit" className="w-full">
-              <LockKeyhole size={16} /> {pending ? "Verifying with Gemini" : "Encrypt and initialize"}
+              <LockKeyhole size={16} /> {pending ? "Validando com o Gemini" : "Criptografar e iniciar"}
             </Button>
           </form>
           <a className="external-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
-            Open Google AI Studio <ExternalLink size={14} />
+            Abrir o Google AI Studio <ExternalLink size={14} />
           </a>
         </div>
       </section>
