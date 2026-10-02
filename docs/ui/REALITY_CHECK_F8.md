@@ -24,7 +24,7 @@ Status: **PASS on the available Linux host.** The F6 shell-launch and dispatcher
 
 After F0–F7 merged, GitHub Actions run [36995251714](https://github.com/anonymandk/jarvis/actions/runs/36995251714) passed the frontend job but failed backend test collection with exit code 2. The collection errors were environmental: `sounddevice` could not load PortAudio, PyAutoGUI had no `DISPLAY`, and PyQt6 could not load `libEGL.so.1`.
 
-The workflow now installs `libportaudio2`, `libegl1`, and `xvfb`, and runs the Python suite under `xvfb-run`. The local host does not have `xvfb-run`; the full pytest suite passed against its existing display. GitHub Actions will verify the new runner setup on the F8 pull request.
+The workflow now installs `libportaudio2`, `libegl1`, and `xvfb`, and runs the Python suite under `xvfb-run`. The local host does not have `xvfb-run`; the full pytest suite passed against its existing display. The F8 GitHub Actions run passed both jobs: frontend and backend; backend reported **318 passed, 2 warnings**. [Run 36995955613](https://github.com/anonymandk/jarvis/actions/runs/36995955613).
 
 ## Limits
 
