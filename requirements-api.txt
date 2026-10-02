@@ -1,0 +1,15 @@
+# Hosted FastAPI service and its direct runtime dependencies.
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2.0,<3
+alembic>=1.13,<2
+psycopg[binary]>=3.2,<4
+redis>=5,<7
+email-validator>=2.2,<3
+cryptography==48.0.0; platform_system=="Darwin" and platform_machine=="x86_64" and python_version>="3.14"
+cryptography>=44,<51; platform_system!="Darwin"
+google-genai
+# API-created JarvisLive instances import main.py, which imports these directly.
+sounddevice
+# Hosted tool execution still exposes legacy-SDK action modules.
+google-generativeai

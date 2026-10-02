@@ -46,8 +46,10 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements.txt
+            requirements-desktop.txt
+            requirements-api.txt
             requirements-dev.txt
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
       - name: Prepare isolated QA workspace
         env:
           JARVIS_QA_WORKSPACE: ${{ runner.temp }}/jarvis-qa
