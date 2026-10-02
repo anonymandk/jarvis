@@ -118,6 +118,49 @@ def volume_set(value: int):
             capture_output=True)
         return
 
+
+def _adjust_xrandr_brightness(delta: float) -> bool:
+    """Adjust the first connected display without invoking a shell pipeline."""
+    try:
+        result = subprocess.run(
+            ["xrandr", "--verbose"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            shell=False,
+        )
+        if result.returncode != 0:
+            return False
+        output_name = None
+        brightness = None
+        active_output = None
+        for line in (result.stdout or "").splitlines():
+            connected = re.match(r"^\s*(\S+)\s+connected(?:\s|$)", line)
+            if connected:
+                active_output = connected.group(1)
+                if output_name is None:
+                    output_name = active_output
+            elif active_output == output_name:
+                match = re.match(r"^\s*Brightness:\s*([0-9]+(?:\.[0-9]+)?)\s*$", line)
+                if match:
+                    brightness = float(match.group(1))
+        if not output_name or brightness is None:
+            return False
+
+        target = max(0.1, min(1.0, brightness + delta))
+        changed = subprocess.run(
+            ["xrandr", "--output", output_name, "--brightness", f"{target:.1f}"],
+            capture_output=True,
+            timeout=5,
+            shell=False,
+        )
+        return changed.returncode == 0
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        print(f"[Settings] xrandr brightness adjustment failed: {exc}")
+        return False
+
 def brightness_up():
     if _OS == "Darwin":
         subprocess.run(["osascript", "-e",
@@ -128,13 +171,7 @@ def brightness_up():
                 capture_output=True).returncode == 0:
             subprocess.run(["brightnessctl", "set", "+10%"], capture_output=True)
         else:
-            subprocess.run(
-                'xrandr --output $(xrandr | grep " connected" | head -1 | cut -d " " -f1)'
-                ' --brightness $(python3 -c "import subprocess; '
-                'b=float(subprocess.check_output([\"xrandr\",\"--verbose\"]).decode()'
-                '.split(\"Brightness:\")[1].split()[0]); print(min(1.0,b+0.1))")',
-                shell=True, capture_output=True
-            )
+            _adjust_xrandr_brightness(0.1)
     else:
         try:
             subprocess.run(
@@ -157,13 +194,7 @@ def brightness_down():
                 capture_output=True).returncode == 0:
             subprocess.run(["brightnessctl", "set", "10%-"], capture_output=True)
         else:
-            subprocess.run(
-                'xrandr --output $(xrandr | grep " connected" | head -1 | cut -d " " -f1)'
-                ' --brightness $(python3 -c "import subprocess; '
-                'b=float(subprocess.check_output([\"xrandr\",\"--verbose\"]).decode()'
-                '.split(\"Brightness:\")[1].split()[0]); print(max(0.1,b-0.1))")',
-                shell=True, capture_output=True
-            )
+            _adjust_xrandr_brightness(-0.1)
     else:
         try:
             subprocess.run(

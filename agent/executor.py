@@ -243,7 +243,27 @@ def _translate_to_goal_language(content: str, goal: str) -> str:
         print(f"[Executor] ⚠️ Translation failed: {e}")
         return content
 
+def _delegated_dispatch_block(tool: str, parameters: dict) -> str | None:
+    """Prevent delegated plans from bypassing JarvisLive's approval boundary."""
+    action = str((parameters or {}).get("action") or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if tool == "dev_agent":
+        return "DISPATCHER_APPROVAL_REQUIRED|Delegated tasks cannot run dev_agent. Ask the user to invoke the project builder directly so its later-turn approval gate can run."
+    if tool == "computer_settings":
+        return "DISPATCHER_APPROVAL_REQUIRED|Delegated tasks cannot control the computer. Ask the user to invoke computer_settings directly."
+    if tool == "computer_control" and action not in {"screenshot", "screen_find", "wait"}:
+        return "DISPATCHER_APPROVAL_REQUIRED|Delegated tasks cannot perform computer input. Ask the user to invoke the action directly so its approval gate can run."
+    if tool == "send_message" and action not in {"cancel", "discard", "deny"}:
+        return "DISPATCHER_APPROVAL_REQUIRED|Delegated tasks cannot send messages. Ask the user to send the exact message through JARVIS directly."
+    if tool == "email_control" and action in {"approve", "confirm", "send"}:
+        return "DISPATCHER_APPROVAL_REQUIRED|Delegated tasks cannot approve or send email. Ask the user to approve the reviewed draft directly through JARVIS."
+    return None
+
+
 def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
+
+    blocked = _delegated_dispatch_block(tool, parameters)
+    if blocked:
+        return blocked
 
     if tool == "open_app":
         from actions.open_app import open_app

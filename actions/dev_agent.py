@@ -1,3 +1,5 @@
+import os
+import shutil
 import subprocess
 import sys
 import json
@@ -271,16 +273,32 @@ def _install_dependencies(dependencies: list[str], project_dir: Path) -> str:
         return f"Install error (non-fatal): {e}"
 
 def _open_vscode(project_dir: Path) -> bool:
-    vscode_candidates = [
-        "code",
-        rf"C:\Users\{Path.home().name}\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd",
-        r"C:\Program Files\Microsoft VS Code\bin\code.cmd",
-    ]
+    vscode_candidates: list[str] = []
+    resolved = shutil.which("code")
+    if os.name == "nt":
+        # Never pass a .cmd/.bat launcher to CreateProcess with user-controlled
+        # arguments: Windows may route batch files through a command shell.
+        candidates = [resolved] if resolved else []
+        candidates.extend((
+            str(Path.home() / "AppData/Local/Programs/Microsoft VS Code/Code.exe"),
+            r"C:\Program Files\Microsoft VS Code\Code.exe",
+        ))
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(candidate)
+            if path.suffix.lower() in {".cmd", ".bat"}:
+                path = path.parent.parent / "Code.exe"
+            if path.suffix.lower() == ".exe" and path.is_file():
+                vscode_candidates.append(str(path))
+    else:
+        vscode_candidates.append(resolved or "code")
+
     for cmd in vscode_candidates:
         try:
             subprocess.Popen(
                 [cmd, str(project_dir)],
-                shell=True,
+                shell=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
