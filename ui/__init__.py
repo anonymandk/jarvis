@@ -13,10 +13,28 @@ from types import ModuleType
 
 _implementation = importlib.import_module("ui._legacy")
 _implementation_names = frozenset(vars(_implementation))
+_component_exports = {
+    name: tuple(
+        module for module_name, module in tuple(sys.modules.items())
+        if module_name.startswith("ui.")
+        and isinstance(module, ModuleType)
+        and name in vars(module)
+    )
+    for name in _implementation_names
+}
 __all__ = [name for name in dir(_implementation) if not name.startswith("_")]
 
 
 class _UIFacade(ModuleType):
+    @staticmethod
+    def _component_modules():
+        return tuple(
+            module for module_name, module in tuple(sys.modules.items())
+            if module_name.startswith("ui.")
+            and isinstance(module, ModuleType)
+            and module is not _implementation
+        )
+
     def __getattr__(self, name: str):
         return getattr(_implementation, name)
 
@@ -27,12 +45,17 @@ class _UIFacade(ModuleType):
             super().__setattr__(name, value)
         elif name in _implementation_names or hasattr(_implementation, name):
             setattr(_implementation, name, value)
+            for module in _component_exports.get(name, ()):
+                setattr(module, name, value)
         else:
             super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
         if name in _implementation_names and hasattr(_implementation, name):
             delattr(_implementation, name)
+            for module in _component_exports.get(name, ()):
+                if hasattr(module, name):
+                    delattr(module, name)
         else:
             super().__delattr__(name)
 
