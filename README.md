@@ -16,13 +16,18 @@ your Python version before continuing:
 python --version
 ```
 
+`requirements.txt` installs the complete desktop and hosted-API runtime for
+existing setup scripts. Use `requirements-desktop.txt` or `requirements-api.txt`
+for a focused runtime install, and `requirements-dev.txt` for the full test and
+QA environment.
+
 ## Quick start (Windows, macOS, Linux)
 
 In Terminal, run:
 
 ```bash
-git clone https://github.com/MAL19INDUSTRIES/JARVIS-OS-V.2.git
-cd JARVIS-OS-V.2
+git clone https://github.com/anonymandk/jarvis.git
+cd jarvis
 python scripts/setup_jarvis.py
 ```
 
@@ -40,6 +45,24 @@ then type `jarvis`.
 JARVIS's core UI, Gemini connection, presentations, research, files, and CLI are
 cross-platform. Some computer-control, email, media, and browser integrations
 depend on permissions and available applications on each operating system.
+
+## Interface previews
+
+The desktop and web captures below come from the repository's UI evidence. The
+state, account, and connection details in these screenshots use deterministic
+test fixtures; they show presentation states, not a live Gemini session.
+
+### Desktop
+
+![JARVIS desktop workspace with an active conversation](docs/ui/evidence/f4/screenshots/desktop/conversation-populated.png)
+
+### Web
+
+![JARVIS web console at the minimum desktop viewport](docs/ui/evidence/f5/screenshots/populated-980x680.png)
+
+More captures: [desktop states and compact window](docs/ui/evidence/f4/README.md),
+[web states, authentication, onboarding, and reduced motion](docs/ui/evidence/f5/README.md),
+and the [UI specification and design decisions](docs/ui/README.md).
 
 ## Hosted web application
 
@@ -60,6 +83,7 @@ Then open `http://localhost:3000`. To run each service directly:
 ```bash
 # API
 cp .env.example .env
+python3 -m pip install -r requirements-api.txt
 alembic upgrade head
 uvicorn api.server:app --reload
 
@@ -128,6 +152,7 @@ installs the same `jarvis` command through the standard Python package entry poi
 - [Usage guide](docs/USAGE.md)
 - [Tutorial](docs/TUTORIAL.md)
 - [Complete QA and bug-audit guide](docs/QA.md)
+- [UI specification, decisions, and screenshots](docs/ui/README.md)
 - [Contribution notes](CONTRIBUTING.md)
 
 ## Configuration files
@@ -145,7 +170,7 @@ Template files are included for local setup:
 
 - Keep `.env` and local secret files out of git.
 - Do not commit `memory/long_term.json` or `config/api_keys.json`.
-- Run `python3 -m py_compile main.py ui.py` before tagging a release.
+- Run `python3 -m compileall -q main.py ui actions core api` before tagging a release.
 
 ## License
 

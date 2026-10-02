@@ -64,7 +64,7 @@ There is no structured `tool_call` event in the current UI client contract, no c
 | Hosted protocol matches the proposed event envelope | Not verified: current event names/shapes differ from v1 and include no structured tool-call event. |
 | Cross-platform behavior is proven by this run | Not verified: baseline ran on Linux only; Windows 11 and macOS were unavailable. |
 
-Other verified documentation drift: `README.md` still gives the clone URL for `MAL19INDUSTRIES/JARVIS-OS-V.2`, while the selected repository is `anonymandk/jarvis`. `LICENSE` is MIT with copyright attributed to Abyz. Both are report-only in this mission; `LICENSE` will not be edited.
+At the F0 snapshot, `README.md` pointed to `MAL19INDUSTRIES/JARVIS-OS-V.2` while the selected repository was `anonymandk/jarvis`; F7 corrected the clone command. `LICENSE` is MIT with copyright attributed to Abyz. The attribution mismatch remains report-only; `LICENSE` will not be edited.
 
 Dependency drift: most Python entries have no version bound, and `web/package.json` declares its direct dependencies as `latest` despite a committed lockfile. The requirements are split into desktop, hosted API, and development profiles; `requirements.txt` remains an aggregate for existing setup scripts. Both Gemini SDKs remain declared because `google-generativeai` is still imported by nine runtime modules; replacing those call sites is a separate behavior-preserving migration. See [the F6 audit](ui/REALITY_CHECK_F6.md).
 

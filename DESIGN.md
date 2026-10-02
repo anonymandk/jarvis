@@ -1,50 +1,136 @@
-# Design System
+# JARVIS Design System
 
-## Source of truth
+JARVIS is a personal desktop AI operator with a companion hosted web console.
+The interface should feel capable, focused, and present. State is easy to read,
+voice and text are equally available, and repeated work stays direct after
+setup.
 
-`ui/theme/tokens.py` is the runtime source for JARVIS UI color palettes, type families, sizes, weights, line heights and letter spacing, layout spacing, radii, opacity, and motion. `arc_reactor` is the active palette. Existing `stealth_red`, `vibranium_purple`, `nanotech_gold`, and `platinum` preferences remain available from that same registry. Legacy `C.*` names and font calls resolve through the tokens so existing widgets keep their public compatibility surface.
+`PRODUCT.md` defines the product principles and anti-references. The
+[UI specification](docs/ui/figma-spec.md) defines the screen structure,
+components, visible states, and accessibility requirements. This file records
+the implemented visual system and its current limits.
 
-`docs/ui/figma-spec.md` defines screen structure, component roles, states, and accessibility behavior. This document and the tokens retain the PRODUCT.md / Arc Reactor identity: solid dark surfaces, cyan primary actions, semantic status colors, bundled fonts, and no decorative blur. The token palette adjusts low-contrast text colors; no spec-only palette or new font is introduced.
+## Design sources
 
-## Arc Reactor palette
+[`design/tokens.json`](design/tokens.json) is the shared source of color,
+typography, spacing, radii, motion, and layout values. Run
+`python scripts/generate_ui_tokens.py` to update the Python and web outputs;
+`python scripts/generate_ui_tokens.py --check` verifies that generated files
+match the source. `ui/theme/tokens.py` serves the desktop client, and the
+generated CSS variables serve the Next.js client. Tests enforce token parity
+and the QA contrast script checks the registered palettes.
 
-| Role | Token | Value |
+The default palette is **Arc Reactor**. The established
+`stealth_red`, `vibranium_purple`, `nanotech_gold`, and `platinum` themes remain
+available for existing user preferences. No new font family or runtime design
+dependency is required.
+
+## Color
+
+The palette uses near-black surfaces, restrained blue borders, cyan for primary
+actions and focus, and semantic colors for status. These values are generated
+from `design/tokens.json`:
+
+| Role | Token | Arc Reactor value |
 |---|---|---|
 | Workspace | `BG` | `#000306` |
-| Primary panel | `PANEL` | `#00080f` |
-| Raised surface | `DARK2` | `#000c18` |
+| Main panel | `PANEL` | `#00080f` |
+| Raised panel | `PANEL2` | `#000b14` |
 | Structural border | `BORDER` | `#0a2535` |
 | Active border | `BORDER_B` | `#1a5c7a` |
 | Reactor cyan | `PRI` | `#00c8ff` |
 | Energy cyan | `ENERGY` | `#00e5ff` |
-| Primary text | `WHITE` | `#e8f8ff` |
+| Main text | `WHITE` | `#e8f8ff` |
 | Secondary text | `TEXT_MED` | `#3a9ab0` |
-| Dim text | `TEXT_DIM` | `#598691` |
 | Success | `GREEN` | `#00ff88` |
 | Warning | `ACC2` | `#ffb300` |
 | Error | `RED` | `#ff2244` |
 
-Text and focus combinations are checked from the token registry. Text roles target at least 4.5:1 against each declared panel, state-card, and hover surface in every theme; warning-toast and primary-button text pairs are checked separately. The primary focus boundary targets at least 3:1 against the declared surfaces. The executable `scripts/check_ui_contrast.py` reports every palette's minimum ratios, and the UI token regression tests also enforce the thresholds.
+Use opaque dark surfaces and thin borders. Reserve amber, green, and red for
+their semantic states. Do not add decorative blur, generic dashboard cards,
+unexplained alerts, or visual telemetry without a runtime source.
 
-## Typography
+## Typography and geometry
 
-- UI text: bundled Space Grotesk.
-- Technical data: bundled JetBrains Mono.
-- Semantic sizes and line heights: display 32/40, title 20/28, section 14/20, body 14/20, label 12/16, and micro 11/16.
-- The token registry retains numeric legacy size aliases while older dense widgets are replaced in later UI work. New components use semantic size names.
+- **Display and interface text:** bundled Space Grotesk.
+- **Technical values, logs, and timestamps:** bundled JetBrains Mono.
+- **Platform emoji fallback:** Segoe UI Emoji, followed by system fallbacks.
+- **Type sizes:** micro 11 px; label/caption 12 px; body/section 14 px; title
+  20 px; display 32 px. The token file pairs these with line heights from 16 to
+  40 px.
+- **Spacing:** shared scale from 1 and 2 px detail values through 4, 8, 12, 16,
+  24, 32, 48, and 64 px.
+- **Radii:** restrained 3–24 px values; 999 px is reserved for pill controls.
 
-## Spacing, radii, and motion
+Desktop reference geometry is 1440×900, with a 980×680 minimum tested viewport,
+a 64 px top bar, a 72 px navigation rail, and 317 px transcript and execution
+panels. The compact conversation surface is 420×640. Its 160 px reactor is
+accompanied by status, recent conversation, controls, and text input; the
+collapsed legacy 80×80 dock is no longer the compact interaction surface.
 
-- Spacing scale: 4, 8, 12, 16, 24, 32, 48, and 64 px. Compatibility aliases preserve existing values during the staged desktop refactor.
-- Radii: 4, 6, 8, 12, 16, and 24 px, with 999 px reserved for pill controls. Compatibility aliases preserve existing component geometry.
-- Motion: fast 120 ms, normal 180 ms, state change 240 ms, and emphasis 320 ms. Standard transitions use OutQuart easing, emphasis transitions use OutCubic, and reduced motion uses Linear with no continuous animation and zero-duration transitions where practical.
+## Desktop and web composition
 
-## Components and layout
+The reactor is the memorable focal point. Conversation, execution, connection,
+and logs remain separate so users can scan the current state and recent work
+without turning the interface into a cockpit. The web client follows the same
+composition using responsive layout and the shared color, type, spacing, and
+motion tokens.
 
-The orb/reactor is the primary identity element. Panels use opaque dark fills and thin structural borders. Use cyan for primary actions and focus, with amber, green, and red reserved for semantic states. The UI labels every state with text and an icon as well as color, uses `—` for unavailable values, and describes the existing unmeasured waveform as activity.
+The PyQt desktop and Next.js web client are presentation adapters. They display
+values received from the existing client contracts; they do not add Gemini or
+action logic. The compact window remains a focused conversation surface, while
+the main desktop and web layouts provide the fuller workspace.
 
-The desktop implementation follows the shared component and state model in `docs/ui/figma-spec.md`. Compact mode retains its 80×80 collapsed control and provides a separate expanded surface. Settings preserve existing graphics profiles and user preferences.
+## State and content
 
-## Motion and anti-patterns
+Use a visible label and icon as well as color for each state:
 
-Motion marks an action or meaningful state transition. Routine idle screens do not pulse continuously. Reduced motion respects the operating system preference and the explicit setting. Avoid decorative gradients, blur, dense scanlines, hover animation on every control, repeated all-caps labels, and fictitious hardware or connection telemetry.
+| State | Label |
+|---|---|
+| `idle` | Em espera |
+| `listening` | Ouvindo |
+| `processing` | Processando |
+| `speaking` | Falando |
+| `reconnecting` | Reconectando |
+| `error` | Erro |
+| `muted` | Microfone silenciado |
+
+Use PT-BR microcopy with simple verbs and consistent names for the same action.
+Errors should state what the interface observed and give the available next
+step; they must not guess a cause. Show an unavailable value as `—`, never as
+zero. The current waveform is animation, so call it **atividade** rather than
+audio level.
+
+The current runtime does not provide structured tool-call events, measured
+Gemini round-trip latency, audio amplitude, or complete structured error and
+reconnect details to both clients. A visible fixture state is evidence of the
+adapter's presentation, not proof that the live service emitted that event.
+Request any missing signal in the relevant phase report; do not manufacture it
+inside the UI.
+
+## Motion and accessibility
+
+Motion marks a user action or a meaningful state transition. The token set uses
+120 ms fast, 180 ms normal, 240 ms state, and 320 ms emphasis durations with
+OutQuart and OutCubic easing. It does not use an idle pulse as decoration.
+
+The reduced-motion preference respects the operating-system/browser setting
+and is also available in desktop settings. It stops continuous motion and
+requests immediate conversation scrolling. The low graphics profile continues
+to avoid continuous animation.
+
+The UI aims for WCAG AA text contrast and a 3:1 focus boundary; the contrast
+script checks all five registered palettes and special warning/button pairs.
+Keyboard focus is visible, navigation follows the rail-to-conversation-to-tools
+flow, controls expose accessible names, compact targets are at least 40×40 px,
+and log text stays at least 12 px.
+
+## Evidence
+
+- [Desktop screenshots and offscreen Qt probe](docs/ui/evidence/f4/README.md)
+- [Web screenshots and Playwright capture metrics](docs/ui/evidence/f5/README.md)
+- [UI specification and implementation reports](docs/ui/README.md)
+
+Desktop states were captured with isolated offscreen fixtures. Web states use
+synthetic API and WebSocket fixtures. Both collections demonstrate visual
+presentation; neither represents an authenticated live session.

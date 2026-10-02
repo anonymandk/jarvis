@@ -41,6 +41,9 @@ Decisions made for the JARVIS UI mission. Dates use the repository's client time
 | 2026-10-02 | Re-key the reactor when its visible state changes, let the CSS reduced-motion media rule disable its finite transition, and use automatic conversation scrolling under the same preference. | State changes get a bounded visual response and incoming messages do not request smooth scrolling when reduced motion is enabled. |
 | 2026-10-02 | Ignore message, error, and close callbacks from superseded websocket instances. | React development Strict Mode can close an initial connection while a replacement is opening; an old close must not mark the live connection as reconnecting. |
 | 2026-10-02 | Capture web states with Playwright against deterministic synthetic API and websocket fixtures; label that evidence as simulated. | Layout and event adaptation can be verified without credentials or a live Gemini session, while avoiding claims about production-service behavior. |
+| 2026-10-02 | Point the README clone command to `anonymandk/jarvis`, the repository being maintained by this mission. | The old command sent contributors to the separate `MAL19INDUSTRIES/JARVIS-OS-V.2` repository. |
+| 2026-10-02 | Keep `PRODUCT.md` unchanged and rewrite `DESIGN.md` to describe the implemented shared token source, desktop/web composition, accessibility, and telemetry limits. | Product principles remain authoritative; implementation details and current UI constraints belong in the design handoff. |
+| 2026-10-02 | Link the README to committed F4 desktop and F5 web screenshot evidence and identify fixture-generated states as synthetic. | Contributors can inspect both interfaces without mistaking test data for a live Gemini or hosted session. |
 
 ## Still to verify during implementation
 
