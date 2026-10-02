@@ -11,10 +11,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 import ui
 from core import intro_tts
+from ui.hud.orb import ActivityVisualizer, ReactorOrb
+from ui.motion import resolve_reduced_motion
 
 
 class _NoSecrets:
@@ -139,12 +143,13 @@ class UIRegressionTests(unittest.TestCase):
         )
         self.assertEqual(set(overlay._graphics_btns), {"auto", "low", "medium", "high"})
         overlay.set_auto_graphics_result("high", "Detected discrete graphics")
-        self.assertIn("HIGH", overlay._graphics_btns["auto"]._desc.text())
+        self.assertIn("Alta", overlay._graphics_btns["auto"]._desc.text())
         self.assertIn("Detected discrete graphics", overlay._graphics_note.text())
-        self.assertEqual(overlay._s_replay_intro.height(), 22)
+        self.assertGreaterEqual(overlay._s_replay_intro.height(), 40)
         overlay.refresh_theme()
-        self.assertIn("qlineargradient", overlay._graphics_btns["auto"].styleSheet())
-        self.assertNotIn("qlineargradient", overlay._graphics_btns["medium"].styleSheet())
+        self.assertNotIn("qlineargradient", overlay._graphics_btns["auto"].styleSheet())
+        self.assertIn("border: 2px solid", overlay._graphics_btns["auto"].styleSheet())
+        self.assertIn("border: 1px solid", overlay._graphics_btns["medium"].styleSheet())
         overlay.deleteLater()
 
     def test_explicit_self_quit_commands_route_to_jarvis(self):
@@ -161,23 +166,25 @@ class UIRegressionTests(unittest.TestCase):
     def test_quit_button_is_visible_and_accessible(self):
         button = self.window._quit_btn
         self.assertEqual(button.objectName(), "JarvisQuitButton")
-        self.assertEqual(button.accessibleName(), "Quit JARVIS")
-        self.assertEqual(button.toolTip(), "Quit JARVIS")
+        self.assertEqual(button.accessibleName(), "Sair do JARVIS")
+        self.assertEqual(button.toolTip(), "Sair do JARVIS")
         self.assertFalse(button.isHidden())
 
     def test_dock_uses_crisp_command_rail_visual_language(self):
+        self.window._muted = False
+        self.window._apply_state("IDLE")
         rail = self.window._dock_frame
         style = rail.styleSheet().lower()
         self.assertEqual(rail.objectName(), "JarvisCommandRail")
-        self.assertEqual(rail.accessibleName(), "JARVIS command rail")
+        self.assertEqual(rail.accessibleName(), "Barra de comandos do JARVIS")
         self.assertIsNone(rail.graphicsEffect())
         self.assertNotIn("qlineargradient", style)
         self.assertNotIn("border-radius: 24px", style)
         self.assertIn("border-radius: 6px", style)
         self.assertEqual(self.window._rail_control_track.objectName(), "CommandControlTrack")
-        self.assertEqual(self.window._rail_control_track.accessibleName(), "Command controls")
-        self.assertEqual(self.window._command_title_lbl.text(), "COMMAND RAIL")
-        self.assertIn("LOCAL", self.window._rail_mode_lbl.text())
+        self.assertEqual(self.window._rail_control_track.accessibleName(), "Controles do JARVIS")
+        self.assertEqual(self.window._command_title_lbl.text(), "JARVIS")
+        self.assertIn("espera", self.window._rail_mode_lbl.text().lower())
 
         buttons = rail.findChildren(ui.QPushButton)
         self.assertEqual(len(buttons), 8)
@@ -194,15 +201,15 @@ class UIRegressionTests(unittest.TestCase):
             self.window._quit_btn,
         )
         visible_labels = {button.text().split("·", 1)[0].strip() for button in primary_buttons}
-        self.assertEqual(visible_labels, {"MIC", "VOICE", "NAME", "THEME", "QUIT"})
+        self.assertEqual(visible_labels, {"Microfone ativo", "Voz", "Nome", "Tema", "Sair"})
 
     def test_dock_mute_state_reuses_command_rail_style(self):
         original = self.window._muted
         try:
             self.window._muted = True
             self.window._style_mute_btn()
-            self.assertIn("MUTED", self.window._mute_btn.text())
-            self.assertEqual(self.window._mute_btn.accessibleName(), "Microphone muted")
+            self.assertIn("silenciado", self.window._mute_btn.text().lower())
+            self.assertEqual(self.window._mute_btn.accessibleName(), "Microfone silenciado")
             self.assertIn("border-radius: 5px", self.window._mute_btn.styleSheet())
             self.assertNotIn("border-radius: 17px", self.window._mute_btn.styleSheet())
         finally:
@@ -448,8 +455,8 @@ class UIRegressionTests(unittest.TestCase):
 
     def test_settings_copy_distinguishes_greeting_from_interface_tour(self):
         overlay = ui.SettingsOverlay(replay_intro=True)
-        self.assertEqual(overlay._s_replay_intro.text(), "Play greeting at startup")
-        self.assertIn("REPLAY INTERFACE TOUR", overlay._s_replay_tour.text())
+        self.assertEqual(overlay._s_replay_intro.text(), "Reproduzir saudação ao iniciar")
+        self.assertIn("visita guiada", overlay._s_replay_tour.text())
         overlay.deleteLater()
 
     def test_manual_tour_replay_activates_hard_interaction_lock(self):
@@ -1383,6 +1390,162 @@ class UIRegressionTests(unittest.TestCase):
         self.assertEqual(self.window._gpu_pct_lbl.text(), "N/A")
         self.assertEqual(self.window._spark_tmp._value, "N/A")
         self.assertEqual(self.window._gpu_load_bar.value(), 0)
+
+    def test_desktop_state_badges_use_distinct_portuguese_labels(self):
+        expected = {
+            "IDLE": "Em espera", "LISTENING": "Ouvindo", "THINKING": "Processando",
+            "SPEAKING": "Falando", "RECONNECTING": "Reconectando", "ERROR": "Erro",
+            "MUTED": "Microfone silenciado",
+        }
+        for state, label in expected.items():
+            with self.subTest(state=state):
+                self.window._muted = False
+                self.window._apply_state(state)
+                self.assertIn(label, self.window._header_state_lbl.text())
+                self.assertEqual(self.window._orb._state, {
+                    "IDLE": "idle", "LISTENING": "listening", "THINKING": "processing",
+                    "SPEAKING": "speaking", "RECONNECTING": "reconnecting", "ERROR": "error",
+                    "MUTED": "muted",
+                }[state])
+                self.assertEqual(self.window._error_guidance.isHidden(), state != "ERROR")
+        self.assertIn("Consulte Logs", self.window._error_guidance.text())
+        compact = ui.CompactModeWidget()
+        compact.set_state("ERROR")
+        self.assertIn("janela completa", compact._tool_summary.text())
+        self.assertEqual(compact._tool_summary.accessibleName(), "Orientação para recuperar de um erro")
+        compact.set_state("IDLE")
+        self.assertEqual(compact._tool_summary.text(), "Ferramentas · estado não publicado pelo cliente")
+        compact.close()
+        self.assertEqual(self.window._connection_status._rtt_value.text(), "—")
+        self.assertEqual(self.window._connection_status._status_value.text(), "—")
+
+    def test_motion_runs_only_briefly_for_state_transitions(self):
+        orb = ReactorOrb(graphics_quality="low")
+        visualizer = ActivityVisualizer(graphics_quality="low")
+        orb.set_reduced_motion(False)
+        visualizer.set_reduced_motion(False)
+        orb.set_graphics_quality("low")
+        visualizer.set_graphics_quality("low")
+        orb.set_state("listening")
+        visualizer.set_state("listening")
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_graphics_quality("high")
+        visualizer.set_graphics_quality("high")
+        orb.set_state("speaking")
+        visualizer.set_state("speaking")
+        self.assertTrue(orb._timer.isActive())
+        self.assertTrue(visualizer._timer.isActive())
+        QTest.qWait(ui.TOKENS.motion_ms["state_transition"] + 50)
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_state("listening")
+        visualizer.set_state("listening")
+        self.assertTrue(orb._timer.isActive())
+        self.assertTrue(visualizer._timer.isActive())
+        orb.set_reduced_motion(True)
+        visualizer.set_reduced_motion(True)
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_state("idle")
+        visualizer.set_state("idle")
+        orb.deleteLater()
+        visualizer.deleteLater()
+
+    def test_compact_surface_has_spec_size_and_only_three_recent_messages(self):
+        compact = ui.CompactModeWidget()
+        compact.resize(420, 640)
+        compact.show()
+        self.app.processEvents()
+        self.assertEqual((compact.width(), compact.height()), (420, 640))
+        self.assertGreaterEqual(compact._input.height(), 44)
+        self.assertGreaterEqual(compact._mute_btn.height(), 40)
+        for index in range(5):
+            compact.append_log(f"You: Mensagem {index + 1}")
+        messages = compact._transcript.toPlainText().splitlines()
+        self.assertEqual(len(messages), 5)  # Three records separated by two blank lines.
+        self.assertEqual(messages[0], "Você: Mensagem 3")
+        self.assertEqual(messages[2], "Você: Mensagem 4")
+        self.assertEqual(messages[4], "Você: Mensagem 5")
+        compact.hide()
+        compact.deleteLater()
+        self.app.processEvents()
+
+    def test_transcript_and_log_text_meet_twelve_pixel_floor(self):
+        self.assertGreaterEqual(self.window._chat_bubble._input.font().pointSize(), 14)
+        self.assertGreaterEqual(self.window._mission.log_widget.font().pointSize(), 12)
+        self.window._mission.tool_widget.push("Pesquisando a página solicitada")
+        self.app.processEvents()
+        message_labels = [
+            label for label in self.window._mission.tool_widget.findChildren(ui.QLabel)
+            if label.text() == "Pesquisando a página solicitada"
+        ]
+        self.assertTrue(message_labels)
+        self.assertGreaterEqual(message_labels[0].font().pointSize(), 12)
+
+    def test_tab_key_follows_navigation_conversation_controls_tools_logs_settings(self):
+        for widget in QApplication.topLevelWidgets():
+            if widget is not self.window:
+                widget.hide()
+        for name in (
+            "_overlay", "_intro_overlay", "_settings_overlay", "_voice_overlay",
+            "_name_overlay", "_shortcuts_overlay", "_tts_overlay",
+        ):
+            overlay = getattr(self.window, name, None)
+            if overlay is not None:
+                overlay.hide()
+        self.window._ready = True
+        self.window._interaction_gated = False
+        self.window.show()
+        self.window._set_command_center(True, announce=False)
+        self.window.raise_()
+        self.window.activateWindow()
+        self.app.processEvents()
+        self.window._nav_buttons[0].setFocus()
+        self.app.processEvents()
+        self.assertIs(self.app.focusWidget(), self.window._nav_buttons[0])
+        for _ in range(len(self.window._nav_buttons)):
+            focused = self.app.focusWidget()
+            QTest.keyClick(focused, Qt.Key.Key_Tab)
+            self.app.processEvents()
+        self.assertIs(self.app.focusWidget(), self.window._chat_bubble._input)
+        expected_order = [
+            self.window._mute_btn,
+            self.window._tts_btn,
+            self.window._name_btn,
+            self.window._theme_btn,
+            self.window._mission._tabs[1],
+            self.window._mission._tabs[3],
+            self.window._mission._tabs[0],
+            self.window._mission._tabs[2],
+            self.window._nav_settings_btn,
+            self.window._utility_btn,
+        ]
+        for expected in expected_order:
+            QTest.keyClick(self.app.focusWidget(), Qt.Key.Key_Tab)
+            self.app.processEvents()
+            self.assertIs(self.app.focusWidget(), expected)
+
+    def test_motion_preference_update_preserves_existing_ui_preferences(self):
+        original = {
+            "graphics_quality": "low",
+            "graphics_quality_mode": "manual",
+            "theme": "nanotech_gold",
+            "intro_version": ui.INTRO_SEQUENCE_VERSION,
+            "other_user_preference": {"keep": True},
+        }
+        ui.UI_SETTINGS_FILE.write_text(json.dumps(original), encoding="utf-8")
+        self.window._on_motion_preference_changed("reduced")
+        saved = json.loads(ui.UI_SETTINGS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(saved["motion_preference"], "reduced")
+        for key, value in original.items():
+            self.assertEqual(saved[key], value)
+
+    def test_motion_resolution_honors_explicit_choice_and_system_preference(self):
+        self.assertTrue(resolve_reduced_motion("reduced", system_value=False))
+        self.assertFalse(resolve_reduced_motion("full", system_value=True))
+        self.assertTrue(resolve_reduced_motion("system", system_value=True))
+        self.assertFalse(resolve_reduced_motion("system", system_value=False))
 
 
 

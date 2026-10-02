@@ -27,7 +27,8 @@ class _OverlayBase(QWidget):
         self._close_cb = close_callback or self.hide
 
         btn = QPushButton("✕", self)
-        btn.setFixedSize(22, 22)
+        btn.setFixedSize(44, 44)
+        btn.setAccessibleName("Fechar painel")
         btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(f"""
@@ -41,6 +42,7 @@ class _OverlayBase(QWidget):
                 color: {C.RED};
                 background: {qss_rgba(C.MUTED_C, TOKENS.opacity['close_button_tint'])};
             }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
         """)
         btn.clicked.connect(self._close_cb)
         self._close_btn = btn
@@ -48,7 +50,7 @@ class _OverlayBase(QWidget):
 
     def _reposition_close_btn(self):
         if hasattr(self, "_close_btn"):
-            self._close_btn.move(self.width() - 28, 6)
+            self._close_btn.move(self.width() - 48, 4)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

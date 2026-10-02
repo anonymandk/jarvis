@@ -202,13 +202,15 @@ VOICE_OPTIONS = list(PROVIDER_VOICES["gemini"])
 VOICE_VALUE_TO_LABEL = {value: label for label, value in VOICE_OPTIONS}
 VOICE_LABEL_TO_VALUE = {label.lower(): value for label, value in VOICE_OPTIONS}
 
-_DEFAULT_W, _DEFAULT_H = 1280, 820
-_MIN_W,     _MIN_H     = 1100, 700
-_LEFT_W  = 230
-_RIGHT_W = 370
-
 _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
 from .theme import C, DISPLAY_FONT, QFont, TECH_FONT, ThemeManager, TOKENS, UI_FONT, _load_bundled_fonts, qcol
+_DEFAULT_W = TOKENS.layout_sizes["desktop_width"]
+_DEFAULT_H = TOKENS.layout_sizes["desktop_height"]
+_MIN_W = TOKENS.layout_sizes["desktop_min_width"]
+_MIN_H = TOKENS.layout_sizes["desktop_min_height"]
+_NAV_W = TOKENS.layout_sizes["navigation_rail"]
+_LEFT_W = TOKENS.layout_sizes["transcript_panel"]
+_RIGHT_W = TOKENS.layout_sizes["execution_panel"]
 
 # ---------------------------------------------------------------------------
 # ChatBubbleWidget — chat-style conversation view

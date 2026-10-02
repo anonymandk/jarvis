@@ -133,11 +133,13 @@ class _MainWindowIdentityMixin:
                 display_name = name.strip()
                 if len(display_name) > 14:
                     display_name = display_name[:13].rstrip() + "…"
-                self._name_btn.setText(f"NAME  ·  {display_name}")
+                self._name_btn.setText("Nome")
+                self._name_btn.setToolTip(f"Nome do operador: {display_name}")
             else:
-                self._name_btn.setText("NAME  ·  SET")
+                self._name_btn.setText("Nome")
+                self._name_btn.setToolTip("Definir nome do operador")
         except Exception:
-            self._name_btn.setText("NAME")
+            self._name_btn.setText("Nome")
 
     def _show_voice_select(self):
         if self._voice_overlay and self._voice_overlay.isVisible():
@@ -318,6 +320,7 @@ class _MainWindowIdentityMixin:
                 if vid == voice_id:
                     label = lbl
                     break
-            self._tts_btn.setText(f"VOICE  ·  {label}")
+            self._tts_btn.setText(f"Voz · {label}")
+            self._tts_btn.setToolTip(f"Voz do JARVIS: {label}")
         except Exception:
-            self._tts_btn.setText("VOICE")
+            self._tts_btn.setText("Voz")

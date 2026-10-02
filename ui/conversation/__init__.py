@@ -42,6 +42,14 @@ class ChatBubbleWidget(QWidget):
         self._c_lay = QVBoxLayout(self._container)
         self._c_lay.setContentsMargins(TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"])
         self._c_lay.setSpacing(TOKENS.spacing["legacy_6"])
+        self._c_lay.addStretch(1)
+        self._empty_hint = QLabel("As mensagens desta sessão aparecem aqui.")
+        self._empty_hint.setAccessibleName("Conversa vazia. Envie uma mensagem para começar.")
+        self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_hint.setWordWrap(True)
+        self._empty_hint.setMinimumHeight(72)
+        self._empty_hint.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
+        self._c_lay.addWidget(self._empty_hint)
         self._c_lay.addStretch()
 
         self._scroll.setWidget(self._container)
@@ -50,7 +58,7 @@ class ChatBubbleWidget(QWidget):
         # ── Command input bar pinned at bottom ───────────────────────────
         input_bar = QWidget()
         self._input_bar = input_bar
-        input_bar.setFixedHeight(42)
+        input_bar.setMinimumHeight(60)
         input_bar.setStyleSheet(f"""
             QWidget {{
                 background: {C.DARK};
@@ -62,9 +70,10 @@ class ChatBubbleWidget(QWidget):
         ib_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         self._input = QLineEdit()
-        self._input.setPlaceholderText("Type a message to JARVIS…")
-        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
-        self._input.setFixedHeight(32)
+        self._input.setAccessibleName("Mensagem para JARVIS")
+        self._input.setPlaceholderText("Escreva para JARVIS")
+        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
+        self._input.setMinimumHeight(44)
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK};
@@ -74,7 +83,7 @@ class ChatBubbleWidget(QWidget):
                 padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px;
             }}
             QLineEdit:focus {{
-                border: 1px solid {C.ENERGY};
+                border: 2px solid {C.ENERGY};
                 background: {C.DARK2};
             }}
             QLineEdit::placeholder {{
@@ -84,10 +93,11 @@ class ChatBubbleWidget(QWidget):
         self._input.returnPressed.connect(self._submit)
         ib_lay.addWidget(self._input, stretch=1)
 
-        send_btn = QPushButton("▸")
+        send_btn = QPushButton("Enviar")
         self._send_btn = send_btn
-        send_btn.setFixedSize(32, 32)
-        send_btn.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_12"], QFont.Weight.DemiBold))
+        send_btn.setMinimumSize(64, 44)
+        send_btn.setAccessibleName("Enviar mensagem")
+        send_btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         send_btn.setStyleSheet(f"""
             QPushButton {{
@@ -108,6 +118,7 @@ class ChatBubbleWidget(QWidget):
         lay.addWidget(input_bar)
 
         self._messages: list[dict] = []
+        self._message_widgets: list[QWidget] = []
 
     def refresh_theme(self):
         """Restyle the live conversation and rebuild existing bubbles."""
@@ -127,7 +138,7 @@ class ChatBubbleWidget(QWidget):
                 background: {C.DARK}; color: {C.WHITE}; border: 1px solid {C.ENERGY};
                 border-radius: {TOKENS.radii['legacy_4']}px; padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px;
             }}
-            QLineEdit:focus {{ border: 1px solid {C.ENERGY}; background: {C.DARK2}; }}
+            QLineEdit:focus {{ border: 2px solid {C.ENERGY}; background: {C.DARK2}; }}
             QLineEdit::placeholder {{ color: {C.TEXT_DIM}; }}
         """)
         self._send_btn.setStyleSheet(f"""
@@ -141,12 +152,13 @@ class ChatBubbleWidget(QWidget):
         saved_messages = list(self._messages)
         if hasattr(self, "_typing_timer"):
             self._typing_timer.stop()
-        while self._c_lay.count() > 1:
-            item = self._c_lay.takeAt(0)
-            if item and item.widget():
-                item.widget().hide()
-                item.widget().deleteLater()
+        for widget in self._message_widgets:
+            self._c_lay.removeWidget(widget)
+            widget.hide()
+            widget.deleteLater()
+        self._message_widgets.clear()
         self._messages.clear()
+        self._empty_hint.setVisible(not saved_messages)
         prefixes = {"user": "You: ", "ai": "JARVIS: ", "file": "FILE: ", "error": "ERR: ", "sys": "SYS: "}
         for message in saved_messages:
             self._skip_typing = True
@@ -170,7 +182,7 @@ class ChatBubbleWidget(QWidget):
             self._c_lay.removeWidget(self._typing_bubble)
             self._typing_bubble.deleteLater()
         lbl = QLabel(partial + '▌')
-        lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"]))
+        lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
         lbl.setWordWrap(True)
         lbl.setStyleSheet(f'color: {C.PRI}; background: {C.PRI_GHO}; border: 1px solid {qss_rgba(C.PRI, 68)}; border-radius: {TOKENS.radii["legacy_6"]}px; padding: {TOKENS.spacing["legacy_6"]}px {TOKENS.spacing["legacy_10"]}px;')
         self._c_lay.addWidget(lbl)
@@ -214,7 +226,7 @@ class ChatBubbleWidget(QWidget):
             bg_col = C.BORDER
             border_col = C.PRI_DIM
             text_col = C.WHITE
-            name = "YOU"
+            name = "VOCÊ"
         elif tl.startswith("jarvis:"):
             sender = "ai"
             display = text[7:].strip()
@@ -230,7 +242,7 @@ class ChatBubbleWidget(QWidget):
             bg_col = C.GREEN_BG
             border_col = C.GREEN_D
             text_col = C.GREEN
-            name = "FILE"
+            name = "ARQUIVO"
         elif "err" in tl or tl.startswith("err:"):
             sender = "error"
             display = text
@@ -238,7 +250,7 @@ class ChatBubbleWidget(QWidget):
             bg_col = C.RED_BG
             border_col = C.RED_D
             text_col = C.RED
-            name = "ERROR"
+            name = "ERRO"
         else:
             sender = "sys"
             display = text.replace("SYS: ", "").replace("SYS:", "")
@@ -246,12 +258,13 @@ class ChatBubbleWidget(QWidget):
             bg_col = C.PURPLE_BG
             border_col = C.ACC
             text_col = C.ACC2
-            name = "SYS"
+            name = "SISTEMA"
 
         ts = time.strftime("%H:%M")
 
         # Build bubble widget
         bubble = QWidget()
+        bubble.setAccessibleName(f"Mensagem de {name.lower()}: {display}")
         bubble.setStyleSheet("background: transparent;")
         b_lay = QHBoxLayout(bubble)
         b_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
@@ -278,19 +291,19 @@ class ChatBubbleWidget(QWidget):
         hdr = QHBoxLayout()
         hdr.setSpacing(TOKENS.spacing["legacy_4"])
         name_lbl = QLabel(name)
-        name_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
+        name_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         name_lbl.setStyleSheet(f"color: {text_col}; background: transparent; border: none;")
         hdr.addWidget(name_lbl)
         hdr.addStretch()
         ts_lbl = QLabel(ts)
-        ts_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_7"]))
+        ts_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"]))
         ts_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; border: none;")
         hdr.addWidget(ts_lbl)
         c_lay.addLayout(hdr)
 
         # Message text
         msg = QLabel(display)
-        msg.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
+        msg.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
         msg.setWordWrap(True)
         msg.setStyleSheet(f"color: {C.WHITE}; background: transparent; border: none;")
         c_lay.addWidget(msg)
@@ -301,14 +314,16 @@ class ChatBubbleWidget(QWidget):
             b_lay.addStretch()
 
         self._c_lay.insertWidget(self._c_lay.count() - 1, bubble)
+        self._message_widgets.append(bubble)
+        self._empty_hint.hide()
         self._messages.append({"sender": sender, "text": display, "ts": ts})
 
         # Keep max 200 messages
         if len(self._messages) > 200:
             self._messages.pop(0)
-            item = self._c_lay.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
+            oldest = self._message_widgets.pop(0)
+            self._c_lay.removeWidget(oldest)
+            oldest.deleteLater()
 
         # Auto-scroll to bottom
         QTimer.singleShot(50, self._scroll_bottom)
@@ -344,11 +359,11 @@ class FocusDialogueWidget(QWidget):
         header = QHBoxLayout()
         header.setSpacing(TOKENS.spacing["legacy_8"])
         self._channel_lbl = QLabel("DIALOGUE LINK")
-        self._channel_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
+        self._channel_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         header.addWidget(self._channel_lbl)
         header.addStretch()
         self._live_lbl = QLabel("●  LIVE")
-        self._live_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.DemiBold))
+        self._live_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         header.addWidget(self._live_lbl)
         shell_lay.addLayout(header)
         self._channel_lbl.hide()
@@ -358,10 +373,10 @@ class FocusDialogueWidget(QWidget):
         message_row.setSpacing(TOKENS.spacing["legacy_10"])
         self._speaker_lbl = QLabel("JARVIS")
         self._speaker_lbl.setFixedWidth(62)
-        self._speaker_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
+        self._speaker_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         message_row.addWidget(self._speaker_lbl, alignment=Qt.AlignmentFlag.AlignTop)
         self._message_lbl = QLabel("Standing by.")
-        self._message_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Medium))
+        self._message_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"], QFont.Weight.Medium))
         self._message_lbl.setWordWrap(True)
         self._message_lbl.setMaximumHeight(34)
         message_row.addWidget(self._message_lbl, stretch=1)
@@ -370,14 +385,16 @@ class FocusDialogueWidget(QWidget):
         input_row = QHBoxLayout()
         input_row.setSpacing(TOKENS.spacing["legacy_7"])
         self._input = QLineEdit()
-        self._input.setPlaceholderText("Give JARVIS a command")
-        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"]))
-        self._input.setFixedHeight(30)
+        self._input.setAccessibleName("Mensagem para JARVIS")
+        self._input.setPlaceholderText("Escreva para JARVIS")
+        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
+        self._input.setMinimumHeight(40)
         self._input.returnPressed.connect(self._submit)
         input_row.addWidget(self._input, stretch=1)
-        self._send_btn = QPushButton("SEND")
-        self._send_btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
-        self._send_btn.setFixedSize(64, 30)
+        self._send_btn = QPushButton("Enviar")
+        self._send_btn.setAccessibleName("Enviar mensagem")
+        self._send_btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
+        self._send_btn.setMinimumSize(72, 40)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_btn.clicked.connect(self._submit)
         input_row.addWidget(self._send_btn)
@@ -397,13 +414,13 @@ class FocusDialogueWidget(QWidget):
             return
         lower = clean.lower()
         if lower.startswith("you:"):
-            speaker, body, color = "YOU", clean[4:].strip(), C.WHITE
+            speaker, body, color = "VOCÊ", clean[4:].strip(), C.WHITE
         elif lower.startswith("jarvis:"):
             speaker, body, color = "JARVIS", clean[7:].strip(), C.PRI
         elif lower.startswith("err:") or "error" in lower:
             speaker, body, color = "ALERT", clean.replace("ERR:", "").strip(), C.RED
         else:
-            speaker = "SYSTEM"
+            speaker = "SISTEMA"
             body = clean.replace("SYS:", "").strip()
             color = C.TEXT_MED
         self._speaker_lbl.setText(speaker)

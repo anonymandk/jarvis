@@ -17,8 +17,8 @@ class ResearchProgressWidget(QWidget):
         self,
         parent=None,
         *,
-        task_title: str = "DEEP RESEARCH",
-        accessible_name: str = "Deep Research background progress",
+        task_title: str = "PESQUISA APROFUNDADA",
+        accessible_name: str = "Progresso da pesquisa aprofundada",
     ):
         super().__init__(parent)
         self.setFixedHeight(106)
@@ -49,12 +49,12 @@ class ResearchProgressWidget(QWidget):
         self._title.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.DemiBold))
         header.addWidget(self._title)
         header.addStretch()
-        self._status = QLabel("RUNNING IN THE BACKGROUND  ·  0%")
+        self._status = QLabel("Em segundo plano · 0%")
         self._status.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         header.addWidget(self._status)
         shell_lay.addLayout(header)
 
-        self._question_lbl = QLabel("Preparing research brief")
+        self._question_lbl = QLabel("Preparando resumo da pesquisa")
         self._question_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Medium))
         self._question_lbl.setWordWrap(False)
         shell_lay.addWidget(self._question_lbl)
@@ -64,10 +64,10 @@ class ResearchProgressWidget(QWidget):
         self._bar.setValue(0)
         self._bar.setTextVisible(False)
         self._bar.setFixedHeight(5)
-        self._bar.setAccessibleName("Deep Research completion")
+        self._bar.setAccessibleName("Progresso da pesquisa aprofundada")
         shell_lay.addWidget(self._bar)
 
-        self._phase = QLabel("Queued")
+        self._phase = QLabel("Na fila")
         self._phase.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Normal))
         shell_lay.addWidget(self._phase)
 
@@ -121,7 +121,7 @@ class ResearchProgressWidget(QWidget):
         self._state = str(update.get("state") or "running")
         self._visible_mode = bool(update.get("visible", self._visible_mode))
         percent = max(0, min(100, int(update.get("percent", 0) or 0)))
-        phase = str(update.get("phase") or "Researching")
+        phase = str(update.get("phase") or "Pesquisando")
         artifacts = update.get("artifacts") or []
         warnings = update.get("warnings") or []
 
@@ -132,17 +132,17 @@ class ResearchProgressWidget(QWidget):
         self._question_lbl.setToolTip(self._question)
         self._bar.setValue(percent)
         if self._state == "completed":
-            status_label = "COMPLETE"
+            status_label = "Concluído"
             if artifacts:
-                phase = f"Report ready: {Path(str(artifacts[0])).name}"
+                phase = f"Relatório pronto: {Path(str(artifacts[0])).name}"
             if warnings:
-                phase += f"  ·  {len(warnings)} warning{'s' if len(warnings) != 1 else ''}"
+                phase += f"  ·  {len(warnings)} aviso(s)"
         elif self._state == "failed":
-            status_label = "FAILED"
+            status_label = "Falhou"
         elif self._state == "cancelled":
-            status_label = "CANCELLED"
+            status_label = "Cancelado"
         else:
-            status_label = "WORKING LIVE" if self._visible_mode else "RUNNING IN THE BACKGROUND"
+            status_label = "Em andamento" if self._visible_mode else "Em segundo plano"
         self._status.setText(f"{status_label}  ·  {percent}%")
         self._phase.setText(phase)
         self.refresh_theme()
@@ -303,7 +303,7 @@ class TaskQueueWidget(QWidget):
             }}
         """)
         lay.addWidget(scroll)
-        self._empty_state = QLabel("No tasks yet. New activity will appear here.", self)
+        self._empty_state = QLabel("Nenhuma tarefa em andamento. A atividade aparecerá aqui.", self)
         self._empty_state.setWordWrap(True)
         self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: {TOKENS.spacing['legacy_10']}px;")
@@ -367,7 +367,7 @@ class TaskQueueWidget(QWidget):
             rl.addWidget(name_lbl, stretch=1)
 
             ts_lbl = QLabel(task["ts"])
-            ts_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
+            ts_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["caption"]))
             ts_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; border: none;")
             rl.addWidget(ts_lbl)
 
@@ -410,7 +410,7 @@ class ToolLogWidget(QWidget):
             }}
         """)
         lay.addWidget(scroll)
-        self._empty_state = QLabel("No tool activity yet. Executed actions will appear here.", self)
+        self._empty_state = QLabel("Nenhuma ferramenta em execução. As ações aparecerão aqui.", self)
         self._empty_state.setWordWrap(True)
         self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: {TOKENS.spacing['legacy_10']}px;")
@@ -466,7 +466,8 @@ class ToolLogWidget(QWidget):
             rl.addWidget(ts_lbl)
 
             msg_lbl = QLabel(txt[:40])
-            msg_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
+            msg_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["caption"]))
+            msg_lbl.setWordWrap(True)
             msg_lbl.setStyleSheet(f"color: {col}; background: transparent; border: none;")
             rl.addWidget(msg_lbl, stretch=1)
 
@@ -502,12 +503,13 @@ class MissionControlPanel(QWidget):
         tb_lay.setSpacing(TOKENS.spacing["legacy_2"])
 
         self._tabs: list[QPushButton] = []
-        self._tab_names = ["COMMS", "TASKS", "ASSETS", "TOOLS"]
+        self._tab_names = ["Logs", "Tarefas", "Arquivos", "Ferramentas"]
         self._active_tab = 0
 
         for i, name in enumerate(self._tab_names):
             btn = QPushButton(name)
-            btn.setFixedHeight(28)
+            btn.setMinimumHeight(40)
+            btn.setAccessibleName(name)
             btn.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, idx=i: self._switch_tab(idx))
@@ -564,7 +566,7 @@ class MissionControlPanel(QWidget):
                     QPushButton {{
                         background: {C.PRI_GHO};
                         color: {C.PRI};
-                        border: none;
+                        border: 2px solid {C.PRI};
                         border-bottom: 2px solid {C.PRI};
                         border-radius: {TOKENS.radii['legacy_3']}px;
                         padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_6']}px;
@@ -582,6 +584,10 @@ class MissionControlPanel(QWidget):
                     QPushButton:hover {{
                         color: {C.TEXT_MED};
                         background: {C.PRI_GHO};
+                    }}
+                    QPushButton:focus {{
+                        color: {C.WHITE};
+                        border: 2px solid {C.PRI};
                     }}
                 """)
 

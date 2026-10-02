@@ -259,6 +259,7 @@ MOTION_MS = {'reduced': 0,
  'fast': 120,
  'normal': 180,
  'state': 240,
+ 'state_transition': 1200,
  'emphasis': 320,
  'legacy_230': 230,
  'legacy_300': 300,
@@ -266,6 +267,18 @@ MOTION_MS = {'reduced': 0,
  **{f'legacy_{duration}': duration for duration in range(0, 2001)}}
 
 MOTION_EASING = {"standard": "OutQuart", "emphasis": "OutCubic", "reduced": "Linear"}
+
+LAYOUT_SIZES = {
+    "desktop_width": 1440, "desktop_height": 900,
+    "desktop_min_width": 980, "desktop_min_height": 680,
+    "desktop_header_height": 64, "navigation_button_target": 48,
+    "navigation_rail": 72, "transcript_panel": 317, "execution_panel": 317,
+    "compact_width": 420, "compact_height": 640, "compact_orb": 160,
+    "compact_header_action_width": 112, "compact_visualizer_width": 124,
+    "compact_visualizer_height": 32, "compact_tool_summary_height": 48,
+    "compact_send_button_width": 72, "compact_mute_button_width": 160,
+    "control_target": 44,
+}
 
 OPACITY = {
     "close_button_tint": 15,
@@ -339,6 +352,7 @@ class UiTokens:
     opacity: Mapping[str, int]
     motion_ms: Mapping[str, int]
     motion_easing: Mapping[str, str]
+    layout_sizes: Mapping[str, int]
 
     def palette(self, theme_name: str = DEFAULT_THEME) -> Mapping[str, str]:
         return self.palettes.get(theme_name, self.palettes[DEFAULT_THEME])
@@ -361,4 +375,5 @@ TOKENS = UiTokens(
     opacity=MappingProxyType(OPACITY),
     motion_ms=MappingProxyType(MOTION_MS),
     motion_easing=MappingProxyType(MOTION_EASING),
+    layout_sizes=MappingProxyType(LAYOUT_SIZES),
 )

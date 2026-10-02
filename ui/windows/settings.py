@@ -48,8 +48,9 @@ class _MainWindowSettingsMixin:
             current_graphics=self._graphics_quality,
             current_graphics_mode=get_graphics_mode(),
             replay_intro=_load_intro_settings()[1],
+            current_motion_preference=self._motion_preference,
         )
-        ow, oh = 560, 410
+        ow, oh = 600, 500
         ov.setGeometry(
             (cw.width() - ow) // 2,
             (cw.height() - oh) // 2,
@@ -59,6 +60,7 @@ class _MainWindowSettingsMixin:
         ov.theme_changed.connect(self._on_settings_theme)
         ov.graphics_changed.connect(self._on_settings_graphics)
         ov.graphics_mode_changed.connect(self._on_settings_graphics_mode)
+        ov.motion_preference_changed.connect(self._on_motion_preference_changed)
         ov.intro_replay_changed.connect(self._on_intro_replay_changed)
         ov.tour_replay_requested.connect(self._request_manual_tour_replay)
         ov.show()
@@ -81,6 +83,25 @@ class _MainWindowSettingsMixin:
         UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
         if mode == "auto":
             self._start_auto_graphics_detection()
+
+    def _on_motion_preference_changed(self, preference: str):
+        value = str(preference or "system")
+        if value not in {"system", "reduced", "full"}:
+            value = "system"
+        settings = _read_ui_settings()
+        settings["motion_preference"] = value
+        UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        self._motion_preference = value
+        from ui.motion import resolve_reduced_motion
+
+        self._reduced_motion = resolve_reduced_motion(value)
+        if hasattr(self, "_orb"):
+            self._orb.set_reduced_motion(self._reduced_motion)
+        if hasattr(self, "_activity_visualizer"):
+            self._activity_visualizer.set_reduced_motion(self._reduced_motion)
+        if self._compact_widget is not None:
+            self._compact_widget.set_reduced_motion(self._reduced_motion)
 
     def _on_intro_replay_changed(self, enabled: bool):
         settings = _read_ui_settings()
@@ -109,8 +130,17 @@ class _MainWindowSettingsMixin:
 
         if hasattr(self, "hud"):
             self.hud.set_graphics_quality(value)
+            self.hud._tmr.stop()
+        if hasattr(self, "_orb"):
+            self._orb.set_graphics_quality(value)
+        if hasattr(self, "_activity_visualizer"):
+            self._activity_visualizer.set_graphics_quality(value)
+        if self._compact_widget is not None:
+            self._compact_widget.set_graphics_quality(value)
         if hasattr(self, "_ai_canvas"):
             self._ai_canvas.set_graphics_quality(value)
+            if hasattr(self._ai_canvas, "_tmr"):
+                self._ai_canvas._tmr.stop()
         if hasattr(self, "_metric_tmr"):
             self._metric_tmr.setInterval(int(profile["metrics_ms"]))
         if self._vision_preview is not None:
@@ -119,10 +149,11 @@ class _MainWindowSettingsMixin:
             self._settings_overlay._current_graphics = value
             self._settings_overlay._highlight_graphics(value)
 
+        quality_label = {"low": "baixa", "medium": "média", "high": "alta"}[value]
         if hasattr(self, "_log"):
-            self._log.append_log(f"SYS: Graphics quality set to {value.upper()}.")
+            self._log.append_log(f"SYS: Qualidade gráfica definida: {quality_label}.")
         if hasattr(self, "_popup_manager"):
-            self._show_toast(f"Graphics quality: {value.upper()}", "success")
+            self._show_toast(f"Qualidade gráfica: {quality_label}", "success")
 
     def _cycle_theme(self):
         try:
@@ -189,6 +220,10 @@ class _MainWindowSettingsMixin:
             self._mission.refresh_theme()
         if hasattr(self, "_focus_dialogue"):
             self._focus_dialogue.refresh_theme()
+        if hasattr(self, "_chat_bubble"):
+            self._chat_bubble.refresh_theme()
+        if hasattr(self, "_connection_status"):
+            self._connection_status.refresh_theme()
         if hasattr(self, "_research_progress"):
             self._research_progress.refresh_theme()
         if hasattr(self, "_subtitle"):
@@ -210,6 +245,13 @@ class _MainWindowSettingsMixin:
 
         for widget in self.findChildren(QWidget):
             widget.update()
+
+        if hasattr(self, "_style_navigation_rail"):
+            self._style_navigation_rail()
+        if hasattr(self, "hud") and hasattr(self, "_apply_state"):
+            self._apply_state(self.hud.state)
+        if self._compact_widget is not None:
+            self._compact_widget.refresh_theme()
 
         try:
             settings_dir = Path.home() / ".jarvis" / "config"

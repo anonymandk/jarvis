@@ -14,6 +14,7 @@ class ShortcutsOverlay(_OverlayBase):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAccessibleName("Atalhos de teclado")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             ShortcutsOverlay {{
@@ -36,7 +37,7 @@ class ShortcutsOverlay(_OverlayBase):
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        layout.addWidget(_lbl("◈  KEYBOARD SHORTCUTS", TOKENS.font_sizes["legacy_13"], True))
+        layout.addWidget(_lbl("◈  Atalhos de teclado", TOKENS.font_sizes["legacy_13"], True))
         layout.addSpacing(TOKENS.spacing["legacy_4"])
 
         sep = QFrame()
@@ -46,14 +47,14 @@ class ShortcutsOverlay(_OverlayBase):
         layout.addSpacing(TOKENS.spacing["legacy_6"])
 
         shortcuts = [
-            ("F4",       "Toggle Microphone Mute"),
-            ("F6",       "Minimize / Restore Window"),
-            ("F11",      "Toggle Fullscreen"),
-            ("Ctrl+/",   "Show This Help Panel"),
-            ("Ctrl+M",   "Toggle Compact Mode"),
-            ("Ctrl+Shift+T", "Cycle Color Theme"),
-            ("Enter",    "Send Command (in input)"),
-            ("Esc",      "Close Overlay / Dismiss"),
+            ("F4",       "Silenciar ou ativar o microfone"),
+            ("F6",       "Minimizar ou restaurar a janela"),
+            ("F11",      "Alternar tela cheia"),
+            ("Ctrl+/",   "Abrir esta ajuda"),
+            ("Ctrl+M",   "Alternar modo compacto"),
+            ("Ctrl+Shift+T", "Alternar tema de cores"),
+            ("Enter",    "Enviar mensagem no campo de texto"),
+            ("Esc",      "Fechar painel ou dispensar aviso"),
         ]
 
         for key, desc in shortcuts:
@@ -79,7 +80,7 @@ class ShortcutsOverlay(_OverlayBase):
             layout.addLayout(row)
 
         layout.addSpacing(TOKENS.spacing["legacy_8"])
-        layout.addWidget(_lbl("Press Esc or Ctrl+/ to close", TOKENS.font_sizes["legacy_7"], color=C.TEXT_DIM))
+        layout.addWidget(_lbl("Pressione Esc ou Ctrl+/ para fechar", TOKENS.font_sizes["legacy_7"], color=C.TEXT_DIM))
 
         self._setup_overlay_base(close_callback=self.hide)
 
@@ -93,10 +94,10 @@ class GraphicsQualityCard(QPushButton):
     """Compact, theme-aware graphics option used by Settings."""
 
     _COPY = {
-        "auto": ("AUTO", "Recommended", "· based on this device"),
-        "low": ("LOW", "20 FPS", "· reduced detail"),
-        "medium": ("MEDIUM", "30 FPS", "· balanced"),
-        "high": ("HIGH", "60 FPS", "· full detail"),
+        "auto": ("AUTO", "Recomendado", "neste dispositivo"),
+        "low": ("BAIXA", "20 FPS", "menos detalhes"),
+        "medium": ("MÉDIA", "30 FPS", "equilibrada"),
+        "high": ("ALTA", "60 FPS", "detalhe máximo"),
     }
 
     def __init__(self, quality: str, parent=None):
@@ -104,10 +105,11 @@ class GraphicsQualityCard(QPushButton):
         self.quality = quality
         title, fps, detail = self._COPY[quality]
         self.setText("")
-        self.setAccessibleName(f"{title.title()} graphics quality")
-        self.setToolTip(f"{fps} {detail}")
+        quality_label = {"auto": "automática", "low": "baixa", "medium": "média", "high": "alta"}[quality]
+        self.setAccessibleName(f"Qualidade gráfica {quality_label}")
+        self.setToolTip(f"{fps} · {detail}")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(78)
+        self.setMinimumSize(88, 92)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_10"])
@@ -117,32 +119,27 @@ class GraphicsQualityCard(QPushButton):
         self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         layout.addWidget(self._title)
 
-        data_row = QHBoxLayout()
-        data_row.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
-        data_row.setSpacing(TOKENS.spacing["legacy_4"])
         self._fps = QLabel(fps, self)
         self._fps.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         self._detail = QLabel(detail, self)
         self._desc = self._detail
+        self._detail.setWordWrap(True)
         self._detail.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Normal))
         for label in (self._fps, self._detail):
             label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            data_row.addWidget(label)
-        data_row.addStretch(1)
-        layout.addLayout(data_row)
+        layout.addWidget(self._fps)
+        layout.addWidget(self._detail, stretch=1)
         self.refresh_theme(False)
 
     def refresh_theme(self, selected: bool):
         if selected:
             self.setStyleSheet(f"""
                 QPushButton {{
-                    background: qlineargradient(
-                        x1:0, y1:0, x2:1, y2:1,
-                        stop:0 {C.PRI_GHO}, stop:0.78 {C.DARK2}, stop:1 {C.PRI_GLOW}
-                    );
-                    border: 1px solid {C.PRI}; border-radius: {TOKENS.radii['legacy_6']}px;
+                    background: {C.PRI_GHO};
+                    border: 2px solid {C.PRI}; border-radius: {TOKENS.radii['legacy_6']}px;
                 }}
-                QPushButton:hover {{ background: {C.PRI_GLOW}; }}
+                QPushButton:hover {{ background: {C.PANEL2}; }}
+                QPushButton:focus {{ border: 2px solid {C.PRI}; }}
             """)
             self._title.setStyleSheet(f"color: {C.WHITE}; background: transparent; border: none;")
             self._fps.setStyleSheet(f"color: {C.PRI}; background: transparent; border: none;")
@@ -154,6 +151,7 @@ class GraphicsQualityCard(QPushButton):
                     border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_6']}px;
                 }}
                 QPushButton:hover {{ border-color: {C.BORDER_B}; background: {C.PANEL2}; }}
+                QPushButton:focus {{ border: 2px solid {C.PRI}; }}
             """)
             self._title.setStyleSheet(f"color: {C.WHITE_DIM}; background: transparent; border: none;")
             self._fps.setStyleSheet(f"color: {C.WHITE_DIM}; background: transparent; border: none;")
@@ -168,14 +166,17 @@ class SettingsOverlay(_OverlayBase):
     theme_changed = pyqtSignal(str)
     graphics_changed = pyqtSignal(str)
     graphics_mode_changed = pyqtSignal(str)
+    motion_preference_changed = pyqtSignal(str)
     intro_replay_changed = pyqtSignal(bool)
     tour_replay_requested = pyqtSignal()
 
     def __init__(self, parent=None, current_name: str = "",
                  current_voice: str = "puck", current_theme: str = "arc_reactor",
                  current_graphics: str = "medium", current_graphics_mode: str = "manual",
-                 replay_intro: bool = False):
+                 replay_intro: bool = False,
+                 current_motion_preference: str = "system"):
         super().__init__(parent)
+        self.setAccessibleName("Configurações do JARVIS")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             SettingsOverlay {{
@@ -190,6 +191,7 @@ class SettingsOverlay(_OverlayBase):
         self._current_theme = current_theme
         self._current_graphics = _normalize_graphics_quality(current_graphics)
         self._current_graphics_mode = current_graphics_mode if current_graphics_mode in {"auto", "manual"} else "auto"
+        self._current_motion_preference = current_motion_preference if current_motion_preference in {"system", "reduced", "full"} else "system"
         self._theme_labels: list[tuple[QLabel, str]] = []
 
         layout = QVBoxLayout(self)
@@ -207,7 +209,7 @@ class SettingsOverlay(_OverlayBase):
             self._theme_labels.append((w, color_role))
             return w
 
-        settings_title = _lbl("◈  SETTINGS", TOKENS.font_sizes["legacy_13"], True)
+        settings_title = _lbl("◈  Configurações", TOKENS.font_sizes["legacy_13"], True)
         settings_title_font = QFont(UI_FONT, TOKENS.font_sizes["legacy_13"], QFont.Weight.DemiBold)
         settings_title_font.setLetterSpacing(
             QFont.SpacingType.AbsoluteSpacing, TOKENS.letter_spacing['tight']
@@ -218,18 +220,19 @@ class SettingsOverlay(_OverlayBase):
 
         # Tab bar
         tab_bar = QWidget()
-        tab_bar.setFixedHeight(26)
+        tab_bar.setMinimumHeight(48)
         tb_lay = QHBoxLayout(tab_bar)
         tb_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
         tb_lay.setSpacing(TOKENS.spacing["legacy_4"])
 
         self._s_tabs: list[QPushButton] = []
-        self._s_tab_names = ["IDENTITY", "THEME", "GRAPHICS"]
+        self._s_tab_names = ["Identidade", "Tema", "Gráficos"]
         self._s_active_tab = 0
 
         for i, name in enumerate(self._s_tab_names):
             btn = QPushButton(name)
-            btn.setFixedHeight(23)
+            btn.setMinimumHeight(40)
+            btn.setAccessibleName(f"Configurações: {name.lower()}")
             btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, idx=i: self._switch_s_tab(idx))
@@ -256,13 +259,14 @@ class SettingsOverlay(_OverlayBase):
         id_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
         id_lay.setSpacing(TOKENS.spacing["legacy_8"])
 
-        id_lay.addWidget(_lbl("◈  YOUR NAME", TOKENS.font_sizes["legacy_9"], bold=True, color_role="PRI",
+        id_lay.addWidget(_lbl("◈  Seu nome", TOKENS.font_sizes["legacy_9"], bold=True, color_role="PRI",
                               align=Qt.AlignmentFlag.AlignLeft))
         self._s_name_input = QLineEdit()
+        self._s_name_input.setAccessibleName("Seu nome")
         self._s_name_input.setText(current_name)
-        self._s_name_input.setPlaceholderText("e.g. Tony, Mirsab, Alex...")
+        self._s_name_input.setPlaceholderText("Por exemplo, Tony")
         self._s_name_input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
-        self._s_name_input.setFixedHeight(32)
+        self._s_name_input.setMinimumHeight(44)
         self._s_name_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.WHITE};
@@ -270,14 +274,15 @@ class SettingsOverlay(_OverlayBase):
                 padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_28']}px;
             }}
             QLineEdit:focus {{
-                border: 1px solid {C.PRI};
+                border: 2px solid {C.PRI};
                 background: {C.DARK};
             }}
         """)
         id_lay.addWidget(self._s_name_input)
 
-        save_name = QPushButton("▸  UPDATE IDENTITY")
-        save_name.setFixedHeight(36)
+        save_name = QPushButton("Atualizar identidade")
+        save_name.setAccessibleName("Atualizar identidade")
+        save_name.setMinimumHeight(44)
         save_name.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Medium))
         save_name.setCursor(Qt.CursorShape.PointingHandCursor)
         save_name.setStyleSheet(f"""
@@ -291,18 +296,28 @@ class SettingsOverlay(_OverlayBase):
                 border: 1px solid {C.PRI};
                 color: {C.ENERGY};
             }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
         """)
         save_name.clicked.connect(lambda: self.name_changed.emit(
             self._s_name_input.text().strip()))
         id_lay.addWidget(save_name)
-        self._s_replay_intro = QCheckBox("Play greeting at startup")
-        self._s_replay_intro.setFixedHeight(22)
+        self._s_replay_intro = QCheckBox("Reproduzir saudação ao iniciar")
+        self._s_replay_intro.setAccessibleName("Reproduzir saudação ao iniciar")
+        self._s_replay_intro.setMinimumHeight(40)
         self._s_replay_intro.setChecked(bool(replay_intro))
         self._s_replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         self._s_replay_intro.toggled.connect(self.intro_replay_changed.emit)
         id_lay.addWidget(self._s_replay_intro)
-        self._s_replay_tour = QPushButton("REPLAY INTERFACE TOUR")
-        self._s_replay_tour.setAccessibleName("Replay interface tour")
+        self._s_replay_tour = QPushButton("Reproduzir visita guiada da interface")
+        self._s_replay_tour.setAccessibleName("Reproduzir visita guiada da interface")
+        self._s_replay_tour.setMinimumHeight(44)
+        self._s_replay_tour.setStyleSheet(f"""
+            QPushButton {{ background: {C.DARK}; color: {C.TEXT_MED};
+                border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['sm']}px;
+                padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['sm']}px; }}
+            QPushButton:hover {{ color: {C.PRI}; border-color: {C.BORDER_B}; }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
+        """)
         self._s_replay_tour.clicked.connect(self.tour_replay_requested.emit)
         id_lay.addWidget(self._s_replay_tour)
         id_lay.addStretch()
@@ -316,14 +331,21 @@ class SettingsOverlay(_OverlayBase):
         th_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
         th_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
-        th_lay.addWidget(_lbl("COLOR THEME", TOKENS.font_sizes["legacy_8"], color_role="TEXT_DIM",
+        th_lay.addWidget(_lbl("Tema de cores", TOKENS.font_sizes["legacy_8"], color_role="TEXT_DIM",
                               align=Qt.AlignmentFlag.AlignLeft))
 
         self._theme_btns: dict[str, QPushButton] = {}
         for key in ThemeManager.theme_names():
-            display = ThemeManager.theme_display_name(key)
+            display = {
+                "arc_reactor": "Reator Arc",
+                "stealth_red": "Vermelho furtivo",
+                "vibranium_purple": "Vibranium roxo",
+                "nanotech_gold": "Ouro nanotecnológico",
+                "platinum": "Platina",
+            }.get(key, ThemeManager.theme_display_name(key))
             btn = QPushButton(f"  {display}")
-            btn.setFixedHeight(32)
+            btn.setAccessibleName(f"Tema {display}")
+            btn.setMinimumHeight(44)
             btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Medium))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, k=key: self._select_theme(k))
@@ -340,11 +362,11 @@ class SettingsOverlay(_OverlayBase):
         gfx_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
         gfx_lay.setSpacing(TOKENS.spacing["legacy_10"])
         gfx_lay.addWidget(_lbl(
-            "GRAPHICS QUALITY", TOKENS.font_sizes["legacy_8"], bold=True, color_role="WHITE_DIM",
+            "Qualidade gráfica", TOKENS.font_sizes["legacy_8"], bold=True, color_role="WHITE_DIM",
             align=Qt.AlignmentFlag.AlignLeft,
         ))
         gfx_lay.addWidget(_lbl(
-            "Choose a performance profile. Changes apply instantly.",
+            "Os perfis preservam suas preferências e entram em vigor na hora.",
             TOKENS.font_sizes["legacy_8"], color_role="WHITE_DIM", align=Qt.AlignmentFlag.AlignLeft,
         ))
 
@@ -362,6 +384,28 @@ class SettingsOverlay(_OverlayBase):
         self._graphics_note.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"]))
         self._graphics_note.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         gfx_lay.addWidget(self._graphics_note)
+        motion_row = QHBoxLayout()
+        motion_label = QLabel("Movimento")
+        motion_label.setAccessibleName("Preferência de movimento")
+        motion_label.setStyleSheet(f"color: {C.WHITE_DIM}; background: transparent;")
+        motion_row.addWidget(motion_label)
+        motion_row.addStretch()
+        self._motion_combo = QComboBox()
+        self._motion_combo.setAccessibleName("Redução de movimento")
+        self._motion_combo.setMinimumSize(180, 44)
+        for label, value in (("Usar sistema", "system"), ("Reduzido", "reduced"), ("Completo", "full")):
+            self._motion_combo.addItem(label, value)
+        index = self._motion_combo.findData(self._current_motion_preference)
+        self._motion_combo.setCurrentIndex(max(0, index))
+        self._motion_combo.currentIndexChanged.connect(
+            lambda _: self._set_motion_preference(self._motion_combo.currentData())
+        )
+        motion_row.addWidget(self._motion_combo)
+        gfx_lay.addLayout(motion_row)
+        self._motion_note = QLabel("Baixa qualidade gráfica sempre desativa o movimento contínuo.")
+        self._motion_note.setAccessibleName("Comportamento do movimento em baixa qualidade")
+        self._motion_note.setWordWrap(True)
+        gfx_lay.addWidget(self._motion_note)
         gfx_lay.addStretch()
         self._s_stack.addWidget(gfx_page)
 
@@ -371,6 +415,7 @@ class SettingsOverlay(_OverlayBase):
             "auto" if self._current_graphics_mode == "auto" else self._current_graphics
         )
         self._setup_overlay_base(close_callback=self.hide)
+        self.refresh_theme()
 
     def _switch_s_tab(self, idx: int):
         self._s_active_tab = idx
@@ -380,7 +425,7 @@ class SettingsOverlay(_OverlayBase):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.PRI_GHO}; color: {C.PRI};
-                        border: none; border-bottom: 2px solid {C.PRI};
+                        border: 2px solid {C.PRI}; border-bottom: 2px solid {C.PRI};
                         border-radius: {TOKENS.radii['legacy_3']}px; padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_8']}px;
                     }}
                 """)
@@ -392,6 +437,7 @@ class SettingsOverlay(_OverlayBase):
                     }}
                     QPushButton:hover {{ color: {C.PRI}; background: {C.PRI_GHO};
                                          border: 1px solid {C.BORDER_B}; }}
+                    QPushButton:focus {{ color: {C.WHITE}; border: 2px solid {C.PRI}; }}
                 """)
 
     def _select_theme(self, key: str):
@@ -409,9 +455,17 @@ class SettingsOverlay(_OverlayBase):
         self._current_graphics = value
         self._current_graphics_mode = "manual"
         self._highlight_graphics(value)
-        self._graphics_note.setText(f"{value.upper()} quality active.")
+        label = {"low": "baixa", "medium": "média", "high": "alta"}[value]
+        self._graphics_note.setText(f"Qualidade {label} ativa.")
         self.graphics_mode_changed.emit("manual")
         self.graphics_changed.emit(value)
+
+    def _set_motion_preference(self, preference: str):
+        value = str(preference or "system")
+        if value not in {"system", "reduced", "full"}:
+            value = "system"
+        self._current_motion_preference = value
+        self.motion_preference_changed.emit(value)
 
     def _highlight_graphics(self, quality: str):
         value = quality if quality == "auto" else _normalize_graphics_quality(quality)
@@ -420,7 +474,8 @@ class SettingsOverlay(_OverlayBase):
 
     def set_auto_graphics_result(self, quality: str, reason: str):
         value = _normalize_graphics_quality(quality)
-        self._graphics_btns["auto"]._desc.setText(f"{value.upper()} · recommended")
+        label = {"low": "Baixa", "medium": "Média", "high": "Alta"}[value]
+        self._graphics_btns["auto"]._desc.setText(f"{label} · recomendada")
         self._graphics_note.setText(str(reason))
         if self._current_graphics_mode == "auto":
             self._highlight_graphics("auto")
@@ -441,7 +496,7 @@ class SettingsOverlay(_OverlayBase):
                 border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_4']}px;
                 padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_28']}px;
             }}
-            QLineEdit:focus {{ border-color: {C.PRI}; background: {C.DARK}; }}
+            QLineEdit:focus {{ border: 2px solid {C.PRI}; background: {C.DARK}; }}
         """)
         self._switch_s_tab(self._s_active_tab)
         self._highlight_theme(self._current_theme)
@@ -449,6 +504,22 @@ class SettingsOverlay(_OverlayBase):
             "auto" if self._current_graphics_mode == "auto" else self._current_graphics
         )
         self._graphics_note.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
+        self._motion_combo.setStyleSheet(f"""
+            QComboBox {{ background: {C.DARK}; color: {C.WHITE}; border: 1px solid {C.BORDER};
+                border-radius: {TOKENS.radii['sm']}px;
+                padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['sm']}px; }}
+            QComboBox:focus {{ border: 2px solid {C.PRI}; }}
+            QComboBox QAbstractItemView {{ background: {C.PANEL}; color: {C.WHITE};
+                selection-background-color: {C.PRI_GHO}; selection-color: {C.PRI}; }}
+        """)
+        self._motion_note.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
+        self._s_replay_tour.setStyleSheet(f"""
+            QPushButton {{ background: {C.DARK}; color: {C.TEXT_MED};
+                border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['sm']}px;
+                padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['sm']}px; }}
+            QPushButton:hover {{ color: {C.PRI}; border-color: {C.BORDER_B}; }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
+        """)
 
     def _highlight_theme(self, key: str):
         for k, btn in self._theme_btns.items():
@@ -465,7 +536,9 @@ class SettingsOverlay(_OverlayBase):
                         background: {C.DARK}; color: {C.TEXT_MED};
                         border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_4']}px;
                     }}
-                    QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
+            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
+            QPushButton:focus {{ border: 2px solid {C.PRI}; }}
                 """)
 
     def keyPressEvent(self, event):

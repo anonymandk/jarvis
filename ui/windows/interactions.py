@@ -11,18 +11,18 @@ class _MainWindowInteractionMixin:
     def _show_left_panel_popup(self):
         """Show left panel content as a popup."""
         # Gather information from left panel components
-        info_lines = ["LEFT PANEL INFORMATION"]
+        info_lines = ["RESUMO DO SISTEMA"]
 
         # Add system metrics if available
         if hasattr(self, '_bar_cpu'):
             cpu_val = getattr(self._bar_cpu, 'value', 0)
-            info_lines.append(f"CPU Usage: {cpu_val:.0f}%")
+            info_lines.append(f"Uso de CPU: {cpu_val:.0f}%")
         if hasattr(self, '_bar_mem'):
             mem_val = getattr(self._bar_mem, 'value', 0)
-            info_lines.append(f"Memory Usage: {mem_val:.0f}%")
+            info_lines.append(f"Uso de memória: {mem_val:.0f}%")
         if hasattr(self, '_bar_net'):
             net_val = getattr(self._bar_net, 'value', 0)
-            info_lines.append(f"Network: {net_val:.0f}%")
+            info_lines.append(f"Rede: {net_val:.0f}%")
         if hasattr(self, '_bar_gpu'):
             gpu_val = getattr(self._bar_gpu, 'value', 0)
             info_lines.append(f"GPU: {gpu_val:.0f}%")
@@ -31,10 +31,10 @@ class _MainWindowInteractionMixin:
         if hasattr(self, '_agent_grid'):
             # AgentGridWidget has a fixed number of agents
             agent_count = len(self._agent_grid._AGENTS)
-            info_lines.append(f"Active Agents: {agent_count}")
+            info_lines.append(f"Agentes ativos: {agent_count}")
 
         info_lines.append("")
-        info_lines.append("Press L again to refresh this information")
+        info_lines.append("Pressione L para atualizar este resumo")
 
         # Join lines and show as popup
         message = "\n".join(info_lines)
@@ -46,28 +46,28 @@ class _MainWindowInteractionMixin:
     def _show_right_panel_popup(self):
         """Show right panel content as a popup."""
         # Gather information from right panel components
-        info_lines = ["RIGHT PANEL INFORMATION"]
+        info_lines = ["PAINEL DE EXECUÇÃO"]
 
         # Add mission info
-        info_lines.append("Mission Control Panel")
+        info_lines.append("Painel de execução")
 
         # Add chat status
         if hasattr(self, '_mission'):
             if hasattr(self._mission, 'log_widget'):
-                info_lines.append("Chat Status: Active")
+                info_lines.append("Conversa: ativa")
             else:
-                info_lines.append("Chat Status: Inactive")
+                info_lines.append("Conversa: inativa")
 
             # Add current tab info
             if hasattr(self._mission, '_stack'):
                 current_index = self._mission._stack.currentIndex()
-                tab_names = ["COMMS", "INTEL", "FILES", "ASSETS", "TOOLS", "MEMORY"]
+                tab_names = ["Logs", "Tarefas", "Arquivos", "Ferramentas"]
                 if 0 <= current_index < len(tab_names):
                     current_tab = tab_names[current_index]
-                    info_lines.append(f"Current Tab: {current_tab}")
+                    info_lines.append(f"Aba atual: {current_tab}")
 
         info_lines.append("")
-        info_lines.append("Press R again to refresh this information")
+        info_lines.append("Pressione R para atualizar este resumo")
 
         # Join lines and show as popup
         message = "\n".join(info_lines)
@@ -97,6 +97,8 @@ class _MainWindowInteractionMixin:
         self._muted = not self._muted
         self.hud.muted = self._muted
         self._style_mute_btn()
+        if hasattr(self, "_compact_widget") and self._compact_widget is not None:
+            self._compact_widget.set_muted(self._muted)
         if self._muted:
             self._apply_state("MUTED")
             self._log.append_log("SYS: Microphone muted.")
@@ -136,8 +138,8 @@ class _MainWindowInteractionMixin:
 
     def _style_mute_btn(self):
         if self._muted:
-            self._mute_btn.setText("MIC  ·  MUTED")
-            self._mute_btn.setAccessibleName("Microphone muted")
+            self._mute_btn.setText("Microfone silenciado")
+            self._mute_btn.setAccessibleName("Microfone silenciado")
             self._mute_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {C.RED_BG};
@@ -152,8 +154,8 @@ class _MainWindowInteractionMixin:
                 }}
             """)
         else:
-            self._mute_btn.setText("MIC  ·  ON")
-            self._mute_btn.setAccessibleName("Microphone active")
+            self._mute_btn.setText("Microfone ativo")
+            self._mute_btn.setAccessibleName("Microfone ativo")
             self._mute_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {C.GREEN_BG};
@@ -212,36 +214,52 @@ class _MainWindowInteractionMixin:
                 print(f"[JARVIS] Message processing failed: {exc}")
 
     def _apply_state(self, state: str):
+        state_key = str(state or "idle").strip().lower()
+        if state_key == "thinking":
+            state_key = "processing"
+        if self._muted and state_key in {"idle", "listening"}:
+            state_key = "muted"
+        state_values = {
+            "idle": ("Em espera", "◇", C.TEXT_MED),
+            "listening": ("Ouvindo", "◖", C.GREEN),
+            "processing": ("Processando", "◈", C.PURPLE),
+            "speaking": ("Falando", "◉", C.PRI),
+            "reconnecting": ("Reconectando", "↻", C.AMBER),
+            "error": ("Erro", "!", C.RED),
+            "muted": ("Microfone silenciado", "⌁", C.TEXT_DIM),
+        }
+        label, icon, state_color = state_values.get(state_key, state_values["idle"])
         self.hud.state    = state
         self.hud.speaking = (state == "SPEAKING")
+        if hasattr(self, "_error_guidance"):
+            self._error_guidance.setVisible(state_key == "error")
+        if hasattr(self, "_orb"):
+            self._orb.set_state(state_key)
+        if hasattr(self, "_activity_visualizer"):
+            self._activity_visualizer.set_state(state_key)
+        if hasattr(self, "_core_state"):
+            self._core_state.setText(f"{icon}  {label}")
+            self._core_state.setStyleSheet(f"color: {state_color}; background: transparent;")
+            self._core_state.setAccessibleDescription(f"Estado atual: {label}")
         if hasattr(self, "_rail_mode_lbl"):
-            self._rail_mode_lbl.setText(f"LOCAL  /  {state}")
-            rail_color = {
-                "MUTED": C.RED,
-                "THINKING": C.ACC2,
-                "PROCESSING": C.ACC2,
-                "SPEAKING": C.PRI,
-                "LISTENING": C.GREEN,
-            }.get(state, C.TEXT_DIM)
+            self._rail_mode_lbl.setText(label)
+            rail_color = state_color
             self._rail_mode_lbl.setStyleSheet(
-                f"color: {rail_color}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
+                f"color: {rail_color}; background: transparent;"
             )
             if hasattr(self, "_rail_status_dot"):
                 self._rail_status_dot.setStyleSheet(
                     f"color: {rail_color}; background: transparent;"
                 )
         if hasattr(self, "_header_mode_lbl"):
-            self._header_mode_lbl.setText(state)
-            state_color = {
-                "MUTED": C.RED,
-                "THINKING": C.ACC2,
-                "PROCESSING": C.ACC2,
-                "SPEAKING": C.PRI,
-                "LISTENING": C.TEXT_MED,
-            }.get(state, C.TEXT_MED)
+            self._header_mode_lbl.setText("Gemini Live · conexão —")
             self._header_mode_lbl.setStyleSheet(
-                f"color: {state_color}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
+                f"color: {C.TEXT_MED}; background: transparent;"
             )
+        if hasattr(self, "_header_state_lbl"):
+            self._header_state_lbl.setText(f"{icon}  {label}")
+            self._header_state_lbl.setStyleSheet(f"color: {state_color}; background: transparent;")
+            self._header_state_lbl.setAccessibleDescription(f"Estado atual: {label}")
         # Sync AI canvas state
         if hasattr(self, "_ai_canvas"):
             self._ai_canvas.state = state
@@ -256,12 +274,7 @@ class _MainWindowInteractionMixin:
         # Sync compact mode widget state
         if self._compact_widget:
             self._compact_widget.set_state(state)
-
-        # Show toast for state transitions
-        if state == "THINKING":
-            self._show_toast("JARVIS is thinking...", "info")
-        elif state == "PROCESSING":
-            self._show_toast("Processing request...", "info")
+            self._compact_widget.set_muted(self._muted)
 
     def _parse_log_for_context(self, text: str):
         """Detect context from log messages and feed task/tool widgets."""

@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QAbstractButton, QComboBox, QLineEdit
+from PyQt6.QtTest import QTest
 
 import ui
 
@@ -36,7 +37,10 @@ def _metrics(widget) -> dict:
                 seen.add(id(control))
     missing_names = []
     small_controls = []
+    undersized_targets = []
     for control in controls:
+        if not control.isVisible():
+            continue
         label = control.accessibleName().strip()
         visible_text = getattr(control, "text", lambda: "")()
         placeholder = getattr(control, "placeholderText", lambda: "")()
@@ -48,11 +52,28 @@ def _metrics(widget) -> dict:
                 "width": control.width(),
                 "height": control.height(),
             })
+        if isinstance(control, QAbstractButton) and (
+            control.width() < 40 or control.height() < 40
+        ):
+            undersized_targets.append({
+                "name": label or str(visible_text or placeholder),
+                "width": control.width(),
+                "height": control.height(),
+            })
     return {
         "controls": len(controls),
         "missing_accessible_names": missing_names,
         "controls_below_24px": small_controls,
+        "buttons_below_40px": undersized_targets,
     }
+
+
+def _capture(widget, path: Path, results: dict, name: str):
+    QApplication.instance().processEvents()
+    QTest.qWait(60)
+    widget.update()
+    widget.grab().save(str(path))
+    results[name] = _metrics(widget)
 
 
 def main() -> int:
@@ -75,6 +96,10 @@ def main() -> int:
         patch.object(ui.MainWindow, "_restore_detached_panels", lambda self: None),
         patch.object(ui.MainWindow, "_start_layout_autosave", lambda self: None),
         patch.object(ui.MainWindow, "_start_auto_graphics_detection", lambda self: None),
+        patch.object(
+            ui.MainWindow, "_show_setup",
+            lambda self: (setattr(self, "_ready", True), setattr(self, "_interaction_gated", False)),
+        ),
     ]
     for patcher in patchers:
         patcher.start()
@@ -85,27 +110,126 @@ def main() -> int:
             "startup_greeting_enabled": False,
         }), encoding="utf-8")
         window = ui.MainWindow("face.png")
+        ui.ThemeManager.set_theme("arc_reactor")
         results = {}
-        for width, height in ((980, 680), (1280, 820)):
-            window.resize(width, height)
-            window.show()
+        screenshots = args.output / "screenshots"
+        (screenshots / "desktop").mkdir(parents=True, exist_ok=True)
+        (screenshots / "compact").mkdir(parents=True, exist_ok=True)
+        (screenshots / "settings").mkdir(parents=True, exist_ok=True)
+        window.resize(1440, 900)
+        window.show()
+        app.processEvents()
+        _capture(window, screenshots / "desktop" / "empty-1440x900.png", results, "desktop-empty")
+        window._on_motion_preference_changed("reduced")
+        window._apply_state("SPEAKING")
+        app.processEvents()
+        _capture(window, screenshots / "desktop" / "motion-reduced.png", results, "desktop-motion-reduced")
+        window._on_motion_preference_changed("system")
+        window._apply_state("IDLE")
+
+        window._navigate_to_mission_tab(0)
+        window._mission.log_widget._tmr.stop()
+        window._mission.log_widget._queue.clear()
+        window._mission.log_widget._typing = False
+        window._mission.log_widget.clear()
+        window._mission.log_widget.append_log("JARVIS: Sessão pronta para mensagens.")
+        QTest.qWait(480)
+        _capture(window, screenshots / "desktop" / "logs-populated.png", results, "desktop-logs")
+        window._navigate_to_mission_tab(3)
+        _capture(window, screenshots / "desktop" / "tools-empty.png", results, "desktop-tools-empty")
+        window._navigate_to_mission_tab(2)
+        _capture(window, screenshots / "desktop" / "files-empty.png", results, "desktop-files-empty")
+        window._navigate_to_mission_tab(1)
+
+        window._log.append_log("You: Olá, JARVIS.")
+        window._log.append_log("JARVIS: Estou pronto para ajudar.")
+        QTest.qWait(420)
+        _capture(window, screenshots / "desktop" / "conversation-populated.png", results, "desktop-conversation")
+        window._chat_bubble.refresh_theme()
+        window._chat_bubble._messages.clear()
+        window._chat_bubble.refresh_theme()
+
+        state_screens = {
+            "idle": "IDLE", "listening": "LISTENING", "processing": "THINKING",
+            "speaking": "SPEAKING", "reconnecting": "RECONNECTING", "error": "ERROR",
+            "muted": "MUTED",
+        }
+        for label, state in state_screens.items():
+            window._apply_state(state)
+            if label == "error":
+                window._connection_status.set_connection("error")
             app.processEvents()
-            name = f"main-{width}x{height}"
-            window.grab().save(str(args.output / f"{name}.png"))
-            results[name] = _metrics(window)
+            _capture(
+                window, screenshots / "desktop" / f"state-{label}.png", results,
+                f"desktop-{label}",
+            )
+            if label == "error":
+                window._connection_status.clear_connection()
+
+        for quality in ("low", "medium", "high"):
+            window._apply_graphics_quality_live(quality)
+            window._apply_state("LISTENING")
+            app.processEvents()
+            _capture(
+                window, screenshots / "desktop" / f"graphics-{quality}.png", results,
+                f"desktop-graphics-{quality}",
+            )
+
+        for toast in tuple(ui.ToastManager._toasts):
+            toast._dismiss()
+        ui.ToastManager._toasts.clear()
+        window._chat_bubble._messages.clear()
+        window._chat_bubble.refresh_theme()
+        window._mission.log_widget._tmr.stop()
+        window._mission.log_widget._queue.clear()
+        window._mission.log_widget._typing = False
+        window._mission.log_widget.clear()
+        window.resize(980, 680)
+        window._apply_state("IDLE")
+        app.processEvents()
+        _capture(window, screenshots / "desktop" / "minimum-980x680.png", results, "desktop-minimum")
 
         settings = ui.SettingsOverlay(
             current_graphics="medium",
             current_graphics_mode="auto",
         )
-        settings.resize(520, 400)
-        settings._s_stack.setCurrentIndex(2)
+        settings.resize(600, 500)
         settings.show()
-        app.processEvents()
-        settings.grab().save(str(args.output / "settings-graphics.png"))
-        results["settings-graphics"] = _metrics(settings)
+        for index, label in enumerate(("identity", "theme", "graphics-and-motion")):
+            settings._switch_s_tab(index)
+            app.processEvents()
+            _capture(
+                settings, screenshots / "settings" / f"{label}.png", results,
+                f"settings-{label}",
+            )
         settings.hide()
         settings.deleteLater()
+
+        window.resize(1440, 900)
+        window._apply_graphics_quality_live("medium")
+        window._on_motion_preference_changed("system")
+        window._apply_state("IDLE")
+        window._toggle_compact_mode()
+        app.processEvents()
+        compact = window._compact_widget
+        for label, state in state_screens.items():
+            compact.set_state(state)
+            app.processEvents()
+            _capture(
+                compact, screenshots / "compact" / f"state-{label}-420x640.png", results,
+                f"compact-{label}",
+            )
+        compact.set_state("LISTENING")
+        for index in range(5):
+            compact.append_log(f"You: Mensagem {index + 1}")
+        app.processEvents()
+        _capture(compact, screenshots / "compact" / "three-recent-messages-420x640.png", results, "compact-three-recent-messages")
+        compact.set_reduced_motion(True)
+        app.processEvents()
+        _capture(compact, screenshots / "compact" / "motion-reduced-420x640.png", results, "compact-motion-reduced")
+        compact.close_without_restore()
+        window._toggle_compact_mode()
+
         window.hide()
         window.deleteLater()
         app.processEvents()

@@ -38,6 +38,7 @@ class _MainWindowStyleMixin:
                     font-size: {TOKENS.font_sizes['legacy_12']}px;
                 }}
                 QPushButton:hover {{ color: {C.WHITE}; border-color: {C.BORDER_B}; }}
+                QPushButton:focus {{ border: 2px solid {C.PRI}; }}
                 QPushButton::menu-indicator {{ image: none; }}
             """)
         if hasattr(self, "_utility_menu"):
@@ -53,7 +54,6 @@ class _MainWindowStyleMixin:
         label_styles = (
             ("_header_brand_lbl", C.WHITE),
             ("_header_mark_lbl", C.TEXT_MED),
-            ("_header_state_lbl", C.GREEN),
             ("_header_mode_lbl", C.TEXT_MED),
             ("_clock_lbl", C.WHITE),
             ("_date_lbl", C.TEXT_DIM),
@@ -109,7 +109,7 @@ class _MainWindowStyleMixin:
             }}
             QPushButton:focus {{
                 background: {C.PRI_GHO}; color: {hover};
-                border: 1px solid {hover};
+                border: 2px solid {hover};
             }}
             QPushButton:pressed {{ background: {C.DARK2}; color: {C.WHITE}; }}
             QPushButton:disabled {{ color: {C.TEXT_DIM}; background: transparent; }}
@@ -189,4 +189,5 @@ class _MainWindowStyleMixin:
     def _update_theme_btn(self):
         if hasattr(self, "_theme_btn"):
             display = ThemeManager.theme_display_name(ThemeManager.current_name())
-            self._theme_btn.setText(f"THEME  ·  {display}")
+            self._theme_btn.setText("Tema")
+            self._theme_btn.setToolTip(f"Tema atual: {display}")

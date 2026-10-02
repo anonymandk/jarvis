@@ -31,7 +31,7 @@ class _MainWindowStartupMixin:
             report = {
                 "quality": quality,
                 "fingerprint": hashlib.sha256(facts.encode()).hexdigest()[:16],
-                "reason": f"Recommended from {cores} logical CPU cores and {memory_gib:.0f} GB RAM.",
+                "reason": f"Recomendado para este dispositivo ({cores} núcleos de CPU e {memory_gib:.0f} GB de RAM).",
             }
             chosen = save_auto_graphics_result(report)
             self._graphics_quality = chosen
@@ -58,7 +58,7 @@ class _MainWindowStartupMixin:
         UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
         if self._settings_overlay and self._settings_overlay.isVisible():
             self._settings_overlay.set_auto_graphics_result(
-                quality, str(report.get("reason", "Recommended for this device."))
+                quality, str(report.get("reason", "Recomendado para este dispositivo."))
             )
 
     def __init__(self, face_path: str):
@@ -130,7 +130,11 @@ class _MainWindowStartupMixin:
         root.addWidget(self._header)
         self._style_header()
 
-        # Create left and right panels (we need to keep references for popup access)
+        # Keep the previous live hardware view hidden for API compatibility;
+        # the new navigation rail stays quiet until the operator asks for a panel.
+        self._legacy_metrics_panel = self._build_legacy_overview()
+        self._legacy_metrics_panel.setParent(central)
+        self._legacy_metrics_panel.hide()
         self._left_panel = self._build_left_panel()
         self._right_panel = self._build_right_panel()
 
@@ -139,30 +143,91 @@ class _MainWindowStartupMixin:
         self._ai_core_wrap.setObjectName("aiCore")
         self._ai_core_wrap.setStyleSheet(f"background: {C.BG};")
         ai_core_lay = QVBoxLayout(self._ai_core_wrap)
-        ai_core_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
-        ai_core_lay.setSpacing(TOKENS.spacing["legacy_6"])
+        ai_core_lay.setContentsMargins(
+            TOKENS.spacing["lg"], TOKENS.spacing["legacy_18"],
+            TOKENS.spacing["lg"], TOKENS.spacing["lg"],
+        )
+        ai_core_lay.setSpacing(TOKENS.spacing["md"])
 
-        # Create configuration objects
-        hud_config = HudConfig()
-        ai_config = AIActivityConfig()
-
-        self.hud = HudCanvas(face_path, config=hud_config)
-        self.hud.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        ai_core_lay.addWidget(self.hud, stretch=4)
+        # Preserve the existing HUD API for the client and integrations while
+        # using a calmer, state-driven orb in the new presentation.
+        self.hud = HudCanvas(face_path, config=HudConfig())
+        self.hud.hide()
+        self.hud._tmr.stop()
+        self.hud.setParent(central)
+        from ui.hud.orb import ActivityVisualizer, ReactorOrb
+        from ui.motion import resolve_reduced_motion
+        motion_preference = str(_read_ui_settings().get("motion_preference", "system"))
+        self._motion_preference = motion_preference
+        self._reduced_motion = resolve_reduced_motion(motion_preference)
+        self._orb = ReactorOrb(
+            graphics_quality=self._graphics_quality,
+            reduced_motion=self._reduced_motion,
+            parent=self._ai_core_wrap,
+        )
+        self._orb.setMinimumSize(216, 216)
+        self._orb.setMaximumSize(320, 320)
+        self._core_title = QLabel("JARVIS")
+        self._core_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._core_title.setFont(QFont(UI_FONT, TOKENS.font_sizes["title"], QFont.Weight.DemiBold))
+        self._core_title.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
+        ai_core_lay.addWidget(self._core_title)
+        ai_core_lay.addStretch(1)
+        ai_core_lay.addWidget(self._orb, alignment=Qt.AlignmentFlag.AlignHCenter, stretch=5)
+        self._core_state = QLabel("◇  Em espera")
+        self._core_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._core_state.setAccessibleName("Estado atual do JARVIS")
+        self._core_state.setFont(QFont(UI_FONT, TOKENS.font_sizes["section"], QFont.Weight.DemiBold))
+        ai_core_lay.addWidget(self._core_state)
+        self._error_guidance = QLabel(
+            "O cliente sinalizou um erro. Consulte Logs para identificar a causa antes de tentar novamente."
+        )
+        self._error_guidance.setAccessibleName("Orientação para recuperar de um erro")
+        self._error_guidance.setWordWrap(True)
+        self._error_guidance.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._error_guidance.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"]))
+        self._error_guidance.setStyleSheet(
+            f"color: {C.TEXT_MED}; background: {C.PANEL}; "
+            f"border-left: 2px solid {C.RED}; border-radius: {TOKENS.radii['sm']}px; "
+            f"padding: {TOKENS.spacing['sm']}px;"
+        )
+        self._error_guidance.hide()
+        ai_core_lay.addWidget(self._error_guidance)
+        visualizer_row = QHBoxLayout()
+        visualizer_row.addStretch()
+        self._activity_visualizer = ActivityVisualizer(
+            graphics_quality=self._graphics_quality,
+            reduced_motion=self._reduced_motion,
+            parent=self._ai_core_wrap,
+        )
+        self._activity_visualizer.setFixedSize(176, 32)
+        visualizer_row.addWidget(self._activity_visualizer)
+        visualizer_row.addStretch()
+        ai_core_lay.addLayout(visualizer_row)
+        activity_hint = QLabel("Atividade visual · nível de áudio não medido")
+        activity_hint.setAccessibleName("Atividade visual, sem nível de áudio medido")
+        activity_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        activity_hint.setWordWrap(True)
+        activity_hint.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"]))
+        activity_hint.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
+        ai_core_lay.addWidget(activity_hint)
+        ai_core_lay.addStretch(1)
 
         self._research_progress = ResearchProgressWidget(parent=self._ai_core_wrap)
         ai_core_lay.addWidget(self._research_progress, stretch=0)
 
         self._presentation_progress = ResearchProgressWidget(
             parent=self._ai_core_wrap,
-            task_title="PRESENTATION",
-            accessible_name="Presentation task progress",
+            task_title="APRESENTAÇÃO",
+            accessible_name="Progresso da apresentação",
         )
         ai_core_lay.addWidget(self._presentation_progress, stretch=0)
 
         # AI Activity Canvas removed for cleaner layout
-        self._ai_canvas = AIActivityCanvas(config=ai_config)
+        self._ai_canvas = AIActivityCanvas(config=AIActivityConfig())
         self._ai_canvas.hide()
+        if hasattr(self._ai_canvas, "_tmr"):
+            self._ai_canvas._tmr.stop()
 
         # Subtitles — enhanced with speaker labels
         self._subtitle = _SubtitleWidget(parent=self._ai_core_wrap)
@@ -171,44 +236,38 @@ class _MainWindowStartupMixin:
 
         self._focus_dialogue = FocusDialogueWidget(parent=self._ai_core_wrap)
         self._focus_dialogue.command_submitted.connect(self._send)
-        self._chat_bubble._sig.connect(self._focus_dialogue.append_log)
         ai_core_lay.addWidget(self._focus_dialogue, stretch=0)
+        self._transcript_panel = self._build_transcript_panel()
+        self._chat_bubble._sig.connect(self._focus_dialogue.append_log)
+        self._mission.log_widget.append_log("SYS: A sessão atual está pronta para mensagens.")
 
-        # Create middle section with left panel, AI core, and right panel
-        middle_section = QWidget()
-        middle_section.setStyleSheet(f"background: {C.BG};")
-        middle_layout = QHBoxLayout(middle_section)
-        middle_layout.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
-        middle_layout.setSpacing(TOKENS.spacing["legacy_0"])
-        middle_layout.addWidget(self._left_panel)
-        middle_layout.addWidget(self._ai_core_wrap, stretch=1)
-        middle_layout.addWidget(self._right_panel)
-
-        # Replace static layout with QSplitter for draggable panels
+        # Conversation, central reactor, and current execution share the window.
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._splitter.addWidget(self._left_panel)
+        self._splitter.addWidget(self._transcript_panel)
         self._splitter.addWidget(self._ai_core_wrap)
         self._splitter.addWidget(self._right_panel)
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 0)
-        self._splitter.setSizes([150, 980, 350])
+        self._splitter.setSizes([
+            _LEFT_W, max(260, self.width() - _LEFT_W - _RIGHT_W - _NAV_W), _RIGHT_W,
+        ])
         self._splitter.setCollapsible(0, True)
         self._splitter.setCollapsible(1, False)
         self._splitter.setCollapsible(2, True)
         self._splitter.setHandleWidth(6)
         self._style_splitter()
 
-        middle_section2 = QWidget()
-        self._middle_section = middle_section2
-        middle_section2.setStyleSheet(f"background: {C.BG};")
-        middle_layout2 = QHBoxLayout(middle_section2)
-        middle_layout2.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
-        middle_layout2.setSpacing(TOKENS.spacing["legacy_0"])
-        middle_layout2.addWidget(self._splitter)
-
-        # Add middle section to main layout
-        root.addWidget(middle_section2, stretch=1)
+        workspace = QWidget()
+        self._middle_section = workspace
+        workspace.setObjectName("desktopWorkspace")
+        workspace.setStyleSheet(f"background: {C.BG};")
+        workspace_layout = QHBoxLayout(workspace)
+        workspace_layout.setContentsMargins(*([TOKENS.spacing["legacy_0"]] * 4))
+        workspace_layout.setSpacing(TOKENS.spacing["legacy_0"])
+        workspace_layout.addWidget(self._left_panel)
+        workspace_layout.addWidget(self._splitter, stretch=1)
+        root.addWidget(workspace, stretch=1)
         # ── Tool progress indicator (above footer) ──────────────────────────
         self._tool_progress = ToolProgressWidget()
         root.addWidget(self._tool_progress)
@@ -221,7 +280,8 @@ class _MainWindowStartupMixin:
         # expanded Command Center without reading as application status.
         self._maker_signature = self._build_maker_signature()
         root.addWidget(self._maker_signature)
-        self._set_command_center(False, announce=False)
+        self._command_center_open = True
+        self._set_command_center(True, announce=False)
 
         self._clock_tmr = QTimer(self)
         self._clock_tmr.timeout.connect(self._tick_clock)
@@ -235,6 +295,8 @@ class _MainWindowStartupMixin:
         self._update_metrics()
 
         self._log_sig.connect(self._log.append_log)
+        self._log_sig.connect(self._mission.log_widget.append_log)
+        self._log_sig.connect(self._append_compact_log)
         self._state_sig.connect(self._apply_state)
         self._voice_sig.connect(self._sync_voice_combo)
         self._sub_sig.connect(self._subtitle.set_text)
@@ -257,6 +319,23 @@ class _MainWindowStartupMixin:
         self._presentation_progress_hide_sig.connect(self._presentation_progress.dismiss)
         self._ui_command_sig.connect(self._handle_ui_command)
         self._intro_prepared_sig.connect(self._on_intro_voice_prepared)
+        tab_order = [
+            *self._nav_buttons,
+            self._chat_bubble._input,
+            self._mute_btn,
+            self._tts_btn,
+            self._name_btn,
+            self._theme_btn,
+            self._mission._tabs[1],
+            self._mission._tabs[3],
+            self._mission._tabs[0],
+            self._mission._tabs[2],
+            self._nav_settings_btn,
+            self._utility_btn,
+        ]
+        for current, following in zip(tab_order, tab_order[1:]):
+            self.setTabOrder(current, following)
+        self._apply_state("IDLE")
 
         # ── Popup System Initialization ────────────────────────────────────────
         self._popup_manager = PopupManager(self._ai_core_wrap)
@@ -464,7 +543,7 @@ class _MainWindowStartupMixin:
         if self._compact_mode:
             # Restore from compact
             if self._compact_widget:
-                self._compact_widget.hide()
+                self._compact_widget.close_without_restore()
                 self._compact_widget.deleteLater()
                 self._compact_widget = None
             self.showNormal()
@@ -474,13 +553,23 @@ class _MainWindowStartupMixin:
             # Enter compact mode
             self._compact_mode = True
             self.hide()
-            cw = CompactModeWidget()
+            cw = CompactModeWidget(
+                on_send=self._send,
+                on_mute=self._toggle_mute,
+                graphics_quality=self._graphics_quality,
+                reduced_motion=self._reduced_motion,
+                muted=self._muted,
+            )
             cw.expand_requested.connect(self._toggle_compact_mode)
-            # Position near center of screen
             screen = QApplication.primaryScreen().availableGeometry()
-            cw.move(screen.width() - 100, screen.height() // 2 - 40)
+            cw.move(
+                screen.x() + max(0, (screen.width() - cw.width()) // 2),
+                screen.y() + max(0, (screen.height() - cw.height()) // 2),
+            )
             cw.show()
             self._compact_widget = cw
-            # Sync state
-            if hasattr(self, "hud"):
-                cw.set_state(self.hud.state)
+            cw.set_state(getattr(self.hud, "state", "IDLE"))
+
+    def _append_compact_log(self, message: str):
+        if self._compact_widget is not None:
+            self._compact_widget.append_log(message)

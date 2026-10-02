@@ -46,9 +46,13 @@ class _MainWindowCommandMixin:
             self._focus_dialogue.setVisible(not is_open)
         if hasattr(self, "_splitter"):
             if is_open:
-                self._splitter.setSizes([_LEFT_W, max(420, self.width() - _LEFT_W - _RIGHT_W), _RIGHT_W])
+                self._splitter.setSizes([
+                    _LEFT_W,
+                    max(260, self.width() - _LEFT_W - _RIGHT_W - _NAV_W),
+                    _RIGHT_W,
+                ])
             else:
-                self._splitter.setSizes([0, max(720, self.width()), 0])
+                self._splitter.setSizes([0, max(720, self.width() - _NAV_W), 0])
 
         reveal_widgets = [
             getattr(self, "_header", None),
@@ -78,11 +82,9 @@ class _MainWindowCommandMixin:
                 self._tool_progress.hide()
         if announce and hasattr(self, "_popup_manager"):
             self._show_toast(
-                "Command Center open" if is_open else "Focus view restored",
+                "Painel completo aberto" if is_open else "Visão focada restaurada",
                 "info",
             )
-        if announce and is_open and not was_open:
-            self._announce_command_center_modules()
 
     def _reveal_widget(self, widget: QWidget, delay_ms: int = 0, transition_id: int | None = None):
         """Reveal a module with a short, stagger-friendly opacity transition."""

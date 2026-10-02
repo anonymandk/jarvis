@@ -370,7 +370,9 @@ class _MainWindowOnboardingMixin:
             self._mission.set_command_center_open(True)
             for surface in (self._header, self._left_panel, self._right_panel, self._command_bar):
                 surface.show()
-            self._splitter.setSizes([_LEFT_W, max(420, self.width() - _LEFT_W - _RIGHT_W), _RIGHT_W])
+            self._splitter.setSizes([
+                _LEFT_W, max(260, self.width() - _LEFT_W - _RIGHT_W - _NAV_W), _RIGHT_W,
+            ])
         if tab_index >= 0:
             self._mission._switch_tab(tab_index)
         elif focus != "mission_tools" and self._mission._active_tab == 3:
@@ -409,7 +411,9 @@ class _MainWindowOnboardingMixin:
                 for surface in (self._header, self._left_panel, self._right_panel, self._command_bar):
                     surface.show()
                 self._splitter.setSizes([
-                    _LEFT_W, max(420, self.width() - _LEFT_W - _RIGHT_W), _RIGHT_W
+                    _LEFT_W,
+                    max(260, self.width() - _LEFT_W - _RIGHT_W - _NAV_W),
+                    _RIGHT_W,
                 ])
             definitions = (
                 ("core", self._ai_core_wrap, 0.0, 6.0),

@@ -13,7 +13,7 @@ class ToastNotification(QWidget):
     def __init__(self, parent, message: str, toast_type: str = "info", duration: int = 4000):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedHeight(40)
+        self.setFixedHeight(48)
 
         colors = {
             "info":    (C.PRI,    C.PRI_GHO),
@@ -32,7 +32,7 @@ class ToastNotification(QWidget):
         """)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_4"])
+        lay.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_2"])
         lay.setSpacing(TOKENS.spacing["legacy_8"])
 
         symbols = {"info": "◈", "success": "✓", "warning": "⚠", "error": "✗"}
@@ -42,19 +42,22 @@ class ToastNotification(QWidget):
         lay.addWidget(sym)
 
         msg = QLabel(message)
-        msg.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
+        msg.setFont(QFont(TECH_FONT, TOKENS.font_sizes["caption"]))
         message_color = C.BG if toast_type == "warning" else C.WHITE
         msg.setStyleSheet(f"color: {message_color}; background: transparent;")
         lay.addWidget(msg, stretch=1)
 
         close = QPushButton("✕")
-        close.setFixedSize(18, 18)
+        close.setFixedSize(40, 40)
+        close.setAccessibleName("Dispensar notificação")
+        close.setToolTip("Dispensar notificação")
         close.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
         close.setCursor(Qt.CursorShape.PointingHandCursor)
         close_color = C.BG if toast_type == "warning" else C.TEXT_DIM
         close.setStyleSheet(f"""
             QPushButton {{ background: transparent; color: {close_color}; border: none; }}
             QPushButton:hover {{ color: {fg}; }}
+            QPushButton:focus {{ border: 2px solid {fg}; }}
         """)
         close.clicked.connect(self._dismiss)
         lay.addWidget(close)
@@ -222,7 +225,8 @@ class BasePopup(QWidget):
         # Close button for non-critical popups
         if popup_type != PopupType.CRITICAL:
             close_btn = QPushButton("✕")
-            close_btn.setFixedSize(20, 20)
+            close_btn.setFixedSize(40, 40)
+            close_btn.setAccessibleName("Dispensar aviso")
             close_btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
             close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             close_btn.setStyleSheet("""
@@ -235,7 +239,10 @@ class BasePopup(QWidget):
                     color: %s;
                     background: %s11;
                 }
-            """ % (text_color, text_color, text_color))
+                QPushButton:focus {
+                    border: 2px solid %s;
+                }
+            """ % (text_color, text_color, text_color, text_color))
             close_btn.clicked.connect(self._dismiss)
             layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignRight)
 

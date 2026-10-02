@@ -13,7 +13,7 @@ class LogWidget(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"]))
+        self.setFont(QFont(TECH_FONT, TOKENS.font_sizes["caption"]))
         self.setStyleSheet(f"""
             QTextEdit {{
                 background: {C.PANEL};
