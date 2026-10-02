@@ -92,12 +92,19 @@ class UIRegressionTests(unittest.TestCase):
             "theme": "nanotech_gold",
         })
 
-    def test_legacy_graphics_setting_migrates_to_auto_until_overridden(self):
+    def test_legacy_graphics_setting_migrates_to_manual_and_survives_auto_detection(self):
         ui.UI_SETTINGS_FILE.write_text(
             json.dumps({"graphics_quality": "high"}),
             encoding="utf-8",
         )
-        self.assertEqual(ui.get_graphics_mode(), "auto")
+        self.assertEqual(ui.get_graphics_mode(), "manual")
+        self.assertEqual(
+            ui.save_auto_graphics_result({"quality": "low", "fingerprint": "late-result"}),
+            "high",
+        )
+        self.assertEqual(ui.get_graphics_quality(), "high")
+        saved = json.loads(ui.UI_SETTINGS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(saved["graphics_quality_mode"], "manual")
         ui.set_graphics_quality("low")
         self.assertEqual(ui.get_graphics_mode(), "manual")
         self.assertEqual(ui.get_graphics_quality(), "low")
@@ -133,6 +140,9 @@ class UIRegressionTests(unittest.TestCase):
         overlay.set_auto_graphics_result("high", "Detected discrete graphics")
         self.assertIn("HIGH", overlay._graphics_btns["auto"]._desc.text())
         self.assertIn("Detected discrete graphics", overlay._graphics_note.text())
+        overlay.refresh_theme()
+        self.assertIn("qlineargradient", overlay._graphics_btns["auto"].styleSheet())
+        self.assertNotIn("qlineargradient", overlay._graphics_btns["medium"].styleSheet())
         overlay.deleteLater()
 
     def test_explicit_self_quit_commands_route_to_jarvis(self):
@@ -224,6 +234,17 @@ class UIRegressionTests(unittest.TestCase):
         self.assertNotIn("intro_every_launch", saved)
         self.assertEqual(saved["intro_version"], ui.INTRO_SEQUENCE_VERSION)
 
+    def test_fresh_install_does_not_enable_startup_greeting(self):
+        original = ui.UI_SETTINGS_FILE.read_text(encoding="utf-8")
+        try:
+            ui.UI_SETTINGS_FILE.write_text("{}", encoding="utf-8")
+            self.assertEqual(ui._load_intro_settings(), (False, False))
+            overlay = ui.SetupOverlay()
+            self.assertFalse(overlay.replay_intro_enabled())
+            overlay.deleteLater()
+        finally:
+            ui.UI_SETTINGS_FILE.write_text(original, encoding="utf-8")
+
     def test_legacy_intro_completion_replays_once_after_version_upgrade(self):
         original = ui.UI_SETTINGS_FILE.read_text(encoding="utf-8")
         try:
@@ -231,9 +252,14 @@ class UIRegressionTests(unittest.TestCase):
                 json.dumps({"intro_completed": True, "intro_every_launch": False}),
                 encoding="utf-8",
             )
-            self.assertEqual(ui._load_intro_settings(), (False, True))
+            self.assertEqual(ui._load_intro_settings(), (False, False))
             ui._save_intro_settings(completed=True, greeting_enabled=False)
             self.assertEqual(ui._load_intro_settings(), (True, False))
+            ui.UI_SETTINGS_FILE.write_text(
+                json.dumps({"intro_completed": True, "intro_every_launch": True}),
+                encoding="utf-8",
+            )
+            self.assertEqual(ui._load_intro_settings(), (False, True))
         finally:
             ui.UI_SETTINGS_FILE.write_text(original, encoding="utf-8")
 
@@ -297,7 +323,8 @@ class UIRegressionTests(unittest.TestCase):
     def test_setup_api_guide_opens_official_ai_studio_page(self):
         overlay = ui.SetupOverlay()
         with patch.object(ui.QDesktopServices, "openUrl", return_value=True) as open_url:
-            overlay._open_api_key_page()
+            overlay._guide_button.click()
+            overlay._api_key_link.click()
         self.assertEqual(
             open_url.call_args.args[0].toString(),
             "https://aistudio.google.com/apikey",
@@ -480,6 +507,46 @@ class UIRegressionTests(unittest.TestCase):
             ) = original
             self.window._mission._switch_tab(original_tab)
 
+    def test_intro_audio_error_releases_startup_interaction_gate(self):
+        original = (
+            self.window._startup_sequence_kind,
+            self.window._intro_overlay,
+            self.window._intro_in_progress,
+            self.window._intro_voice_preparing,
+            self.window._interaction_gated,
+            self.window._pending_ready_after_intro,
+            self.window._overlay,
+        )
+        setup_overlay = self.window._overlay
+        setup_was_visible = setup_overlay is not None and setup_overlay.isVisible()
+        self.window._startup_sequence_kind = "greeting"
+        self.window._pending_ready_after_intro = True
+        try:
+            with patch.object(ui.FirstRunIntroOverlay, "_start_narration"):
+                self.window._start_first_run_intro()
+                intro = self.window._intro_overlay
+                self.assertIsNotNone(intro)
+                intro._speech_error.emit("speaker unavailable")
+                self.app.processEvents()
+            self.assertFalse(self.window._interaction_gated)
+            self.assertFalse(self.window._intro_in_progress)
+            self.assertIsNone(self.window._intro_overlay)
+            self.assertIsNotNone(self.window._overlay)
+            self.assertTrue(self.window._overlay.isVisible())
+            self.assertIn("FAILED", self.window._overlay._setup_status.text())
+        finally:
+            (
+                self.window._startup_sequence_kind,
+                self.window._intro_overlay,
+                self.window._intro_in_progress,
+                self.window._intro_voice_preparing,
+                self.window._interaction_gated,
+                self.window._pending_ready_after_intro,
+                self.window._overlay,
+            ) = original
+            if setup_overlay is not None:
+                setup_overlay.setVisible(setup_was_visible)
+
     def test_intro_does_not_force_fullscreen(self):
         source = inspect.getsource(ui.MainWindow._start_first_run_intro)
         self.assertNotIn("showFullScreen", source)
@@ -518,6 +585,7 @@ class UIRegressionTests(unittest.TestCase):
                 overlay._speech_thread.join(timeout=2.0)
                 generate.assert_not_called()
                 play.assert_called_once()
+                self.assertIs(play.call_args.kwargs["stop_event"], overlay._speech_stop)
                 self.assertTrue(cache_path.exists())
                 overlay.stop_speech()
                 overlay.deleteLater()
@@ -1236,6 +1304,10 @@ class UIRegressionTests(unittest.TestCase):
         original_ready = self.window._ready
         original_pending = self.window._pending_ready_after_intro
         original_announced = self.window._ready_announced
+        original_overlay = self.window._overlay
+        setup_overlay = ui.SetupOverlay(self.window.centralWidget())
+        setup_overlay.show()
+        self.window._overlay = setup_overlay
         self.window._ready = False
         self.window._pending_ready_after_intro = True
         self.window._ready_announced = False
@@ -1247,10 +1319,16 @@ class UIRegressionTests(unittest.TestCase):
                 self.window._continue_after_intro()
             self.assertTrue(self.window._ready)
             self.assertTrue(self.window._ready_announced)
+            self.assertIsNone(self.window._overlay)
+            facade = ui.JarvisUI.__new__(ui.JarvisUI)
+            facade._win = self.window
+            self.assertTrue(facade.operational_ready)
         finally:
+            setup_overlay.deleteLater()
             self.window._ready = original_ready
             self.window._pending_ready_after_intro = original_pending
             self.window._ready_announced = original_announced
+            self.window._overlay = original_overlay
 
     def test_splitter_uses_evaluated_stylesheet(self):
         sheet = self.window._splitter.styleSheet()

@@ -27,6 +27,7 @@ class GraphicsQualityTests(unittest.TestCase):
                 self.assertEqual(json.loads(settings_file.read_text(encoding="utf-8")), {
                     "theme": "platinum",
                     "graphics_quality": "high",
+                    "graphics_quality_mode": "manual",
                 })
 
     def test_hud_profiles_change_real_rendering_cost(self):
@@ -42,10 +43,10 @@ class GraphicsQualityTests(unittest.TestCase):
             hud._tmr.stop()
             hud.deleteLater()
 
-    def test_settings_exposes_exactly_three_quality_choices(self):
+    def test_settings_exposes_auto_and_three_quality_choices(self):
         overlay = ui.SettingsOverlay(current_graphics="medium")
         try:
-            self.assertEqual(set(overlay._graphics_btns), {"low", "medium", "high"})
+            self.assertEqual(set(overlay._graphics_btns), {"auto", "low", "medium", "high"})
             selected = []
             overlay.graphics_changed.connect(selected.append)
             overlay._select_graphics("high")

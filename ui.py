@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import platform
@@ -10,20 +11,37 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
+from datetime import datetime
 from pathlib import Path
 
 import psutil
 
 from PyQt6.QtCore import (
     QEasingCurve, QEvent, QMimeData, QObject, QPointF, QPropertyAnimation,
-    QRectF, QSize, Qt, QTimer, QUrl, pyqtSignal,
+    QRect, QRectF, QSize, Qt, QTimer, QUrl, pyqtSignal,
 )
 
 from PyQt6.QtGui import (
     QAction, QBrush, QColor, QDragEnterEvent, QDropEvent, QFont as _QFont,
     QFontDatabase, QIcon, QImage, QKeySequence, QLinearGradient, QPainter,
-    QPainterPath, QPen, QPixmap, QRadialGradient, QShortcut,
+    QPainterPath, QPen, QPixmap, QRadialGradient, QShortcut, QDesktopServices,
 )
+
+from ui_first_run import (
+    INTRO_CHAPTER_RENDER_ATTEMPTS, INTRO_MASTERING_VERSION,
+    INTRO_PERFORMANCE_VERSION, INTRO_SAMPLE_RATE, INTRO_SEQUENCE_VERSION,
+    INTRO_TTS_MODELS, INTRO_VOICE_CACHE_DIR, FirstRunIntroOverlay, IntroChapter,
+    _cache_intro_voice_async, _daily_greeting, _extract_intro_pcm,
+    _generate_intro_aligned_speech_pcm, _generate_intro_segmented_speech_pcm,
+    _generate_intro_speech_pcm, _intro_caption_boundaries, _intro_voice_cache_path,
+    _is_intro_quota_error, _load_intro_timing_cache, _master_intro_pcm,
+    _pcm_duration_seconds, _play_intro_pcm, _prepare_intro_voice_cache,
+    _render_intro_segments_with_live, _render_intro_with_live, _request_intro_tts,
+    _tour_captions, _tour_chapters, _tour_narration, _voice_display_name,
+    _write_intro_timing_cache,
+)
+from core.api_key_validator import ApiKeyValidationResult
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QCheckBox, QFormLayout, QFrame, QGraphicsOpacityEffect,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QPushButton,
@@ -115,9 +133,78 @@ def set_graphics_quality(quality: str) -> str:
     value = _normalize_graphics_quality(quality)
     settings = _read_ui_settings()
     settings["graphics_quality"] = value
+    settings["graphics_quality_mode"] = "manual"
     UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     return value
+
+
+def _graphics_mode_from_settings(settings: dict) -> str:
+    saved_mode = str(settings.get("graphics_quality_mode", "")).strip().lower()
+    if saved_mode in {"auto", "manual"}:
+        return saved_mode
+    # Older releases stored a selected profile but had no auto mode. Preserve
+    # that choice; only settings without any profile should use detection.
+    return "manual" if "graphics_quality" in settings else "auto"
+
+
+def get_graphics_mode() -> str:
+    return _graphics_mode_from_settings(_read_ui_settings())
+
+
+def save_auto_graphics_result(report: dict) -> str:
+    """Save a device-based profile only while the user still has auto enabled."""
+    quality = _normalize_graphics_quality(report.get("quality", "medium"))
+    settings = _read_ui_settings()
+    if _graphics_mode_from_settings(settings) == "manual":
+        if "graphics_quality_mode" not in settings:
+            settings["graphics_quality_mode"] = "manual"
+            UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        return _normalize_graphics_quality(settings.get("graphics_quality", "medium"))
+    settings["graphics_quality_mode"] = "auto"
+    settings["graphics_quality"] = quality
+    settings["graphics_auto_fingerprint"] = str(report.get("fingerprint", ""))
+    settings["graphics_auto_report"] = dict(report)
+    UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    return quality
+
+
+def qss_rgba(color: str, alpha: int) -> str:
+    parsed = QColor(color)
+    return f"rgba({parsed.red()}, {parsed.green()}, {parsed.blue()}, {max(0, min(255, int(alpha)))})"
+
+
+def _load_intro_settings() -> tuple[bool, bool]:
+    data = _read_ui_settings()
+    version = int(data.get("intro_version", 0) or 0)
+    completed = bool(data.get("intro_completed", False)) and version >= INTRO_SEQUENCE_VERSION
+    # Fresh installs go straight to the console after the one-time tour. Honor
+    # an explicit legacy replay preference while migrating its default to off.
+    greeting = bool(data.get("startup_greeting_enabled", data.get("intro_every_launch", False)))
+    return completed, greeting
+
+
+def _save_intro_settings(completed: bool, greeting_enabled: bool) -> None:
+    data = _read_ui_settings()
+    data.pop("intro_every_launch", None)
+    data["intro_completed"] = bool(completed)
+    data["startup_greeting_enabled"] = bool(greeting_enabled)
+    data["intro_version"] = INTRO_SEQUENCE_VERSION
+    UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    UI_SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def route_jarvis_ui_command(command: str):
+    normalized = " ".join(re.sub(r"[^a-z ]+", " ", str(command or "").lower()).split())
+    patterns = (
+        r"^(?:jarvis )?(?:quit|exit|close)(?: jarvis)?$",
+        r"^shut yourself down$",
+        r"^(?:jarvis )?turn yourself off$",
+        r"^go offline(?: jarvis)?$",
+    )
+    return ("quit_jarvis", None) if any(re.fullmatch(pattern, normalized) for pattern in patterns) else None
 VOICE_OPTIONS = [
     ("Puck",          "puck"),
     ("Charon",        "charon"),
@@ -496,7 +583,7 @@ class ChatBubbleWidget(QWidget):
             QLineEdit {{
                 background: {C.DARK};
                 color: {C.WHITE};
-                border: 1px solid {C.ENERGY}55;
+                border: 1px solid {qss_rgba(C.ENERGY, 85)};
                 border-radius: 4px;
                 padding: 4px 10px;
             }}
@@ -518,13 +605,13 @@ class ChatBubbleWidget(QWidget):
         send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         send_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {C.ENERGY}22;
+                background: {qss_rgba(C.ENERGY, 34)};
                 color: {C.ENERGY};
-                border: 1px solid {C.ENERGY}66;
+                border: 1px solid {qss_rgba(C.ENERGY, 102)};
                 border-radius: 4px;
             }}
             QPushButton:hover {{
-                background: {C.ENERGY}44;
+                background: {qss_rgba(C.ENERGY, 68)};
                 border: 1px solid {C.ENERGY};
                 color: {C.WHITE};
             }}
@@ -599,7 +686,7 @@ class ChatBubbleWidget(QWidget):
         lbl = QLabel(partial + '▌')
         lbl.setFont(QFont(UI_FONT, 9))
         lbl.setWordWrap(True)
-        lbl.setStyleSheet(f'color: {C.PRI}; background: {C.PRI_GHO}; border: 1px solid {C.PRI}44; border-radius: 6px; padding: 6px 10px;')
+        lbl.setStyleSheet(f'color: {C.PRI}; background: {C.PRI_GHO}; border: 1px solid {qss_rgba(C.PRI, 68)}; border-radius: 6px; padding: 6px 10px;')
         self._c_lay.addWidget(lbl)
         self._typing_bubble = lbl
         sb = self._scroll.verticalScrollBar()
@@ -1187,8 +1274,8 @@ class ToolProgressWidget(QWidget):
         self.setFixedHeight(28)
         self.setStyleSheet(f"""
             QWidget {{
-                background: {C.PURPLE}18;
-                border: 1px solid {C.PURPLE}44;
+                background: {qss_rgba(C.PURPLE, 24)};
+                border: 1px solid {qss_rgba(C.PURPLE, 68)};
                 border-radius: 4px;
             }}
         """)
@@ -1476,19 +1563,19 @@ class BasePopup(QWidget):
         
         # Styling based on popup type
         bg_colors = {
-            PopupType.MICRO: f"{C.PRI_GHO}cc",
-            PopupType.INFORMATION: f"{C.BORDER}aa",
-            PopupType.ACTION: f"{C.ACC}15",
-            PopupType.RESEARCH: f"{C.PURPLE}15",
-            PopupType.CRITICAL: f"{C.RED}20",
+            PopupType.MICRO: qss_rgba(C.PRI_GHO, 204),
+            PopupType.INFORMATION: qss_rgba(C.BORDER, 170),
+            PopupType.ACTION: qss_rgba(C.ACC, 21),
+            PopupType.RESEARCH: qss_rgba(C.PURPLE, 21),
+            PopupType.CRITICAL: qss_rgba(C.RED, 32),
         }
         
         border_colors = {
-            PopupType.MICRO: f"{C.PRI}44",
-            PopupType.INFORMATION: f"{C.BORDER}88",
-            PopupType.ACTION: f"{C.ACC}88",
-            PopupType.RESEARCH: f"{C.PURPLE}88",
-            PopupType.CRITICAL: f"{C.RED}cc",
+            PopupType.MICRO: qss_rgba(C.PRI, 68),
+            PopupType.INFORMATION: qss_rgba(C.BORDER, 136),
+            PopupType.ACTION: qss_rgba(C.ACC, 136),
+            PopupType.RESEARCH: qss_rgba(C.PURPLE, 136),
+            PopupType.CRITICAL: qss_rgba(C.RED, 204),
         }
         
         text_colors = {
@@ -1499,8 +1586,8 @@ class BasePopup(QWidget):
             PopupType.CRITICAL: C.RED,
         }
         
-        bg = bg_colors.get(popup_type, f"{C.PRI_GHO}cc")
-        border = border_colors.get(popup_type, f"{C.PRI}44")
+        bg = bg_colors.get(popup_type, qss_rgba(C.PRI_GHO, 204))
+        border = border_colors.get(popup_type, qss_rgba(C.PRI, 68))
         text_color = text_colors.get(popup_type, C.WHITE)
         
         self.setStyleSheet(f"""
@@ -1775,7 +1862,11 @@ class PopupManager(QObject):
     def dismiss_all_popups(self):
         """Dismiss all popups immediately."""
         for popup in self.active_popups[:]:  # Copy list
-            popup._dismiss()
+            try:
+                popup._dismiss()
+            except RuntimeError:
+                # Qt wrappers may outlive their C++ object while a tour starts.
+                pass
         self.active_popups.clear()
 
 
@@ -4037,6 +4128,11 @@ class TaskQueueWidget(QWidget):
             }}
         """)
         lay.addWidget(scroll)
+        self._empty_state = QLabel("No tasks yet. New activity will appear here.", self)
+        self._empty_state.setWordWrap(True)
+        self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: 10px;")
+        lay.addWidget(self._empty_state)
 
     def push_task(self, name: str, status: str):
         self._sig.emit(name, status)
@@ -4054,6 +4150,7 @@ class TaskQueueWidget(QWidget):
         self._rebuild()
 
     def _rebuild(self):
+        self._empty_state.setVisible(not self._tasks)
         # Clear layout
         while self._c_lay.count() > 1:
             item = self._c_lay.takeAt(0)
@@ -4142,6 +4239,11 @@ class ToolLogWidget(QWidget):
             }}
         """)
         lay.addWidget(scroll)
+        self._empty_state = QLabel("No tool activity yet. Executed actions will appear here.", self)
+        self._empty_state.setWordWrap(True)
+        self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: 10px;")
+        lay.addWidget(self._empty_state)
 
     def push(self, text: str):
         self._sig.emit(text)
@@ -4153,6 +4255,7 @@ class ToolLogWidget(QWidget):
         self._rebuild()
 
     def _rebuild(self):
+        self._empty_state.setVisible(not self._entries)
         while self._c_lay.count() > 1:
             item = self._c_lay.takeAt(0)
             if item.widget():
@@ -4637,7 +4740,7 @@ class SetupOverlay(QWidget):
         p.end()
         super().paintEvent(event)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, replay_every_launch: bool = False):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
@@ -4699,6 +4802,40 @@ class SetupOverlay(QWidget):
         self._validation_lbl.setFont(QFont("Arial", 8))
         self._validation_lbl.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         layout.addWidget(self._validation_lbl)
+        self._setup_status = QLabel("Enter a verified key to continue.")
+        self._setup_status.setWordWrap(True)
+        self._setup_status.setFont(QFont(TECH_FONT, 8))
+        self._setup_status.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
+        layout.addWidget(self._setup_status)
+
+        self._guide_button = QPushButton("How do I get a Gemini API key?")
+        self._guide_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._guide_button.setAccessibleName("Show Gemini API key guide")
+        self._guide_button.clicked.connect(self._toggle_api_guide)
+        layout.addWidget(self._guide_button)
+        self._guide_scroll = QScrollArea()
+        self._guide_scroll.setWidgetResizable(True)
+        self._guide_scroll.setMaximumHeight(104)
+        self._guide_scroll.setVisible(False)
+        guide_body = QWidget()
+        guide_layout = QVBoxLayout(guide_body)
+        guide_layout.setContentsMargins(0, 0, 0, 0)
+        guide_layout.setSpacing(4)
+        guide = QLabel(
+            "1. Open Google AI Studio and sign in.\n"
+            "2. Create an API key for your project.\n"
+            "3. Copy it here; JARVIS verifies it before continuing."
+        )
+        guide.setWordWrap(True)
+        guide.setStyleSheet(f"color: {C.TEXT_MED}; background: {C.DARK}; padding: 8px;")
+        guide_layout.addWidget(guide)
+        self._api_key_link = QPushButton("Open Google AI Studio")
+        self._api_key_link.setAccessibleName("Open Google AI Studio API key page")
+        self._api_key_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._api_key_link.clicked.connect(self._open_api_key_page)
+        guide_layout.addWidget(self._api_key_link)
+        self._guide_scroll.setWidget(guide_body)
+        layout.addWidget(self._guide_scroll)
         layout.addSpacing(8)
 
         self._remember_key = QPushButton("☆  Remember API key on this machine")
@@ -4717,6 +4854,11 @@ class SetupOverlay(QWidget):
         """)
         self._remember_key.clicked.connect(self._toggle_remember_key)
         layout.addWidget(self._remember_key)
+
+        self._replay_intro = QCheckBox("Play greeting at startup")
+        self._replay_intro.setChecked(bool(replay_every_launch))
+        self._replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
+        layout.addWidget(self._replay_intro)
 
         layout.addSpacing(12)
 
@@ -4759,6 +4901,47 @@ class SetupOverlay(QWidget):
         """)
         self._init_btn.clicked.connect(self._submit)
         layout.addWidget(self._init_btn)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._center_in_parent()
+        QTimer.singleShot(0, self._center_in_parent)
+
+    def _center_in_parent(self):
+        parent = self.parentWidget()
+        if parent is not None:
+            self.move(max(0, (parent.width() - self.width()) // 2),
+                      max(0, (parent.height() - self.height()) // 2))
+
+    def replay_intro_enabled(self) -> bool:
+        return self._replay_intro.isChecked()
+
+    def _toggle_api_guide(self):
+        expanded = not self._guide_scroll.isVisible()
+        self._guide_scroll.setVisible(expanded)
+        self._guide_button.setText("Hide API key guide" if expanded else "How do I get a Gemini API key?")
+        self._guide_button.setAccessibleName("Hide Gemini API key guide" if expanded else "Show Gemini API key guide")
+        self._center_in_parent()
+
+    def _open_api_key_page(self):
+        QDesktopServices.openUrl(QUrl("https://aistudio.google.com/apikey"))
+
+    def set_validating(self):
+        self._validation_pending = True
+        self._key_input.setEnabled(False)
+        self._init_btn.setEnabled(False)
+        self._setup_status.setText("VALIDATING GEMINI API KEY…")
+        self._setup_status.setStyleSheet(f"color: {C.ACC2}; background: transparent;")
+
+    def set_validation_error(self, message: str):
+        self._validation_pending = False
+        self._key_input.setEnabled(True)
+        self._init_btn.setEnabled(True)
+        self._init_btn.show()
+        self._setup_status.setText("API KEY VALIDATION FAILED. Check the key and try again.")
+        self._setup_status.setToolTip(str(message))
+        self._validation_lbl.setText(str(message))
+        self._validation_lbl.setStyleSheet(f"color: {C.RED}; background: transparent;")
 
     def _sel(self, key: str):
         self._sel_os = key
@@ -4841,6 +5024,7 @@ class SetupOverlay(QWidget):
         self._init_btn.setText("VERIFYING WITH GEMINI…")
         self._validation_lbl.setText("Contacting Gemini. The key will not be saved unless verification succeeds.")
         self._validation_lbl.setStyleSheet(f"color: {C.ACC2}; background: transparent;")
+        self.set_validating()
 
         def _validate():
             from core.api_key_validator import validate_gemini_api_key
@@ -4857,8 +5041,7 @@ class SetupOverlay(QWidget):
         if not valid:
             if os.environ.get("GEMINI_API_KEY", "").strip() == key:
                 os.environ.pop("GEMINI_API_KEY", None)
-            self._validation_lbl.setText(message)
-            self._validation_lbl.setStyleSheet(f"color: {C.RED}; background: transparent;")
+            self.set_validation_error(message)
             self._key_input.setStyleSheet(f"""
                 QLineEdit {{
                     background: {C.DARK}; color: {C.TEXT};
@@ -4871,6 +5054,8 @@ class SetupOverlay(QWidget):
 
         self._validation_lbl.setText("Gemini key verified.")
         self._validation_lbl.setStyleSheet(f"color: {C.GREEN}; background: transparent;")
+        self._setup_status.setText("API KEY VERIFIED")
+        self._setup_status.setStyleSheet(f"color: {C.GREEN}; background: transparent;")
         self._verified_key = key
         self.done.emit(key, self._sel_os, remember_key)
 
@@ -5057,6 +5242,7 @@ class GraphicsQualityCard(QPushButton):
     """Compact, theme-aware graphics option used by Settings."""
 
     _COPY = {
+        "auto": ("AUTO", "Recommended", "· based on this device"),
         "low": ("LOW", "20 FPS", "· reduced detail"),
         "medium": ("MEDIUM", "30 FPS", "· balanced"),
         "high": ("HIGH", "60 FPS", "· full detail"),
@@ -5086,6 +5272,7 @@ class GraphicsQualityCard(QPushButton):
         self._fps = QLabel(fps, self)
         self._fps.setFont(QFont(TECH_FONT, 8, QFont.Weight.Medium))
         self._detail = QLabel(detail, self)
+        self._desc = self._detail
         self._detail.setFont(QFont(UI_FONT, 8, QFont.Weight.Normal))
         for label in (self._fps, self._detail):
             label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -5129,10 +5316,14 @@ class SettingsOverlay(_OverlayBase):
     name_changed = pyqtSignal(str)
     theme_changed = pyqtSignal(str)
     graphics_changed = pyqtSignal(str)
+    graphics_mode_changed = pyqtSignal(str)
+    intro_replay_changed = pyqtSignal(bool)
+    tour_replay_requested = pyqtSignal()
 
     def __init__(self, parent=None, current_name: str = "",
                  current_voice: str = "puck", current_theme: str = "arc_reactor",
-                 current_graphics: str = "medium"):
+                 current_graphics: str = "medium", current_graphics_mode: str = "manual",
+                 replay_intro: bool = False):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
@@ -5147,6 +5338,7 @@ class SettingsOverlay(_OverlayBase):
         self._current_voice = current_voice
         self._current_theme = current_theme
         self._current_graphics = _normalize_graphics_quality(current_graphics)
+        self._current_graphics_mode = current_graphics_mode if current_graphics_mode in {"auto", "manual"} else "auto"
         self._theme_labels: list[tuple[QLabel, str]] = []
 
         layout = QVBoxLayout(self)
@@ -5242,7 +5434,7 @@ class SettingsOverlay(_OverlayBase):
                 letter-spacing: 1px;
             }}
             QPushButton:hover {{
-                background: {C.PRI}22;
+                background: {qss_rgba(C.PRI, 34)};
                 border: 1px solid {C.PRI};
                 color: {C.ENERGY};
             }}
@@ -5250,6 +5442,15 @@ class SettingsOverlay(_OverlayBase):
         save_name.clicked.connect(lambda: self.name_changed.emit(
             self._s_name_input.text().strip()))
         id_lay.addWidget(save_name)
+        self._s_replay_intro = QCheckBox("Play greeting at startup")
+        self._s_replay_intro.setChecked(bool(replay_intro))
+        self._s_replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
+        self._s_replay_intro.toggled.connect(self.intro_replay_changed.emit)
+        id_lay.addWidget(self._s_replay_intro)
+        self._s_replay_tour = QPushButton("REPLAY INTERFACE TOUR")
+        self._s_replay_tour.setAccessibleName("Replay interface tour")
+        self._s_replay_tour.clicked.connect(self.tour_replay_requested.emit)
+        id_lay.addWidget(self._s_replay_tour)
         id_lay.addStretch()
 
         self._s_stack.addWidget(id_page)
@@ -5278,8 +5479,7 @@ class SettingsOverlay(_OverlayBase):
         th_lay.addStretch()
         self._s_stack.addWidget(th_page)
 
-        # Page 2: Graphics. The choices are intentionally limited to the three
-        # clear modes users asked for; no opaque automatic mode is inserted.
+        # Page 2: Graphics, including the device-based automatic profile.
         gfx_page = QWidget()
         gfx_page.setStyleSheet("background: transparent;")
         gfx_lay = QVBoxLayout(gfx_page)
@@ -5297,7 +5497,7 @@ class SettingsOverlay(_OverlayBase):
         gfx_row = QHBoxLayout()
         gfx_row.setSpacing(8)
         self._graphics_btns: dict[str, GraphicsQualityCard] = {}
-        for quality in ("low", "medium", "high"):
+        for quality in ("auto", "low", "medium", "high"):
             button = GraphicsQualityCard(quality)
             button.clicked.connect(lambda _, q=quality: self._select_graphics(q))
             self._graphics_btns[quality] = button
@@ -5313,7 +5513,9 @@ class SettingsOverlay(_OverlayBase):
 
         self._switch_s_tab(0)
         self._highlight_theme(current_theme)
-        self._highlight_graphics(self._current_graphics)
+        self._highlight_graphics(
+            "auto" if self._current_graphics_mode == "auto" else self._current_graphics
+        )
         self._setup_overlay_base(close_callback=self.hide)
 
     def _switch_s_tab(self, idx: int):
@@ -5332,7 +5534,7 @@ class SettingsOverlay(_OverlayBase):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: transparent; color: {C.WHITE_DIM};
-                        border: 1px solid {C.BORDER}44; border-radius: 3px; padding: 0 8px;
+                        border: 1px solid {qss_rgba(C.BORDER, 68)}; border-radius: 3px; padding: 0 8px;
                     }}
                     QPushButton:hover {{ color: {C.PRI}; background: {C.PRI_GHO};
                                          border: 1px solid {C.BORDER_B}; }}
@@ -5344,16 +5546,30 @@ class SettingsOverlay(_OverlayBase):
         self._highlight_theme(key)
 
     def _select_graphics(self, quality: str):
+        if quality == "auto":
+            self._current_graphics_mode = "auto"
+            self._highlight_graphics("auto")
+            self.graphics_mode_changed.emit("auto")
+            return
         value = _normalize_graphics_quality(quality)
         self._current_graphics = value
+        self._current_graphics_mode = "manual"
         self._highlight_graphics(value)
         self._graphics_note.setText(f"{value.upper()} quality active.")
+        self.graphics_mode_changed.emit("manual")
         self.graphics_changed.emit(value)
 
     def _highlight_graphics(self, quality: str):
-        value = _normalize_graphics_quality(quality)
+        value = quality if quality == "auto" else _normalize_graphics_quality(quality)
         for key, button in self._graphics_btns.items():
             button.refresh_theme(key == value)
+
+    def set_auto_graphics_result(self, quality: str, reason: str):
+        value = _normalize_graphics_quality(quality)
+        self._graphics_btns["auto"]._desc.setText(f"{value.upper()} · recommended")
+        self._graphics_note.setText(str(reason))
+        if self._current_graphics_mode == "auto":
+            self._highlight_graphics("auto")
 
     def refresh_theme(self):
         self.setStyleSheet(f"""
@@ -5375,7 +5591,9 @@ class SettingsOverlay(_OverlayBase):
         """)
         self._switch_s_tab(self._s_active_tab)
         self._highlight_theme(self._current_theme)
-        self._highlight_graphics(self._current_graphics)
+        self._highlight_graphics(
+            "auto" if self._current_graphics_mode == "auto" else self._current_graphics
+        )
         self._graphics_note.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
 
     def _highlight_theme(self, key: str):
@@ -5866,7 +6084,7 @@ class VoiceSelectorOverlay(_OverlayBase):
                 letter-spacing: 1px;
             }}
             QPushButton:hover {{
-                background: {C.PRI}22;
+                background: {qss_rgba(C.PRI, 34)};
                 border: 1px solid {C.PRI};
                 color: {C.ENERGY};
             }}
@@ -5931,7 +6149,7 @@ class VoiceSelectorOverlay(_OverlayBase):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.DARK}; color: {C.TEXT_MED};
-                        border: 1px solid {C.BORDER}55; border-radius: 4px;
+                        border: 1px solid {qss_rgba(C.BORDER, 85)}; border-radius: 4px;
                         border-top: 1px solid {C.BORDER};
                     }}
                     QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B};
@@ -6599,6 +6817,7 @@ class MainWindow(QMainWindow):
     _presentation_progress_finish_sig = pyqtSignal(str, str)
     _presentation_progress_hide_sig = pyqtSignal()
     _ui_command_sig = pyqtSignal(str)
+    _intro_prepared_sig = pyqtSignal(bool, str)
 
     def _restore_detached_panels(self) -> None:
         """Compatibility hook for persisted panel layouts."""
@@ -6607,7 +6826,51 @@ class MainWindow(QMainWindow):
         """Compatibility hook for layout persistence."""
 
     def _start_auto_graphics_detection(self) -> None:
-        """Compatibility hook for deferred capability detection."""
+        """Choose a graphics profile from basic, local hardware facts."""
+        if get_graphics_mode() != "auto":
+            return
+        QTimer.singleShot(250, self._run_auto_graphics_detection)
+
+    def _run_auto_graphics_detection(self) -> None:
+        try:
+            memory_gib = psutil.virtual_memory().total / (1024 ** 3)
+            cores = psutil.cpu_count(logical=True) or 1
+            quality = "low" if cores <= 4 or memory_gib < 8 else (
+                "high" if cores >= 8 and memory_gib >= 16 else "medium"
+            )
+            facts = f"{platform.system()}|{platform.machine()}|{cores}|{memory_gib:.1f}"
+            report = {
+                "quality": quality,
+                "fingerprint": hashlib.sha256(facts.encode()).hexdigest()[:16],
+                "reason": f"Recommended from {cores} logical CPU cores and {memory_gib:.0f} GB RAM.",
+            }
+            chosen = save_auto_graphics_result(report)
+            self._graphics_quality = chosen
+            profile = GRAPHICS_PROFILES[chosen]
+            self.hud.set_graphics_quality(chosen)
+            self._ai_canvas.set_graphics_quality(chosen)
+            if self._vision_preview is not None:
+                self._vision_preview.set_graphics_quality(chosen)
+            self._metric_tmr.setInterval(int(profile["metrics_ms"]))
+            if self._settings_overlay and self._settings_overlay.isVisible():
+                self._settings_overlay.set_auto_graphics_result(chosen, report["reason"])
+        except (OSError, RuntimeError, ValueError, AttributeError):
+            # Keep the last valid profile if this machine does not expose facts.
+            return
+
+    def _finish_auto_graphics_detection(self, report: dict) -> None:
+        if get_graphics_mode() != "auto":
+            return
+        quality = save_auto_graphics_result(report)
+        self._apply_graphics_quality_live(quality)
+        settings = _read_ui_settings()
+        settings["graphics_quality_mode"] = "auto"
+        UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        if self._settings_overlay and self._settings_overlay.isVisible():
+            self._settings_overlay.set_auto_graphics_result(
+                quality, str(report.get("reason", "Recommended for this device."))
+            )
 
     def __init__(self, face_path: str):
         super().__init__()
@@ -6657,6 +6920,7 @@ class MainWindow(QMainWindow):
         self._force_quit            = False
         self._command_center_open   = False
         self._graphics_quality      = get_graphics_quality()
+        self._settings_overlay = None
 
         self.setStyleSheet(f"""
             QMainWindow, QWidget {{ background: {C.BG}; }}
@@ -6761,6 +7025,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self._tool_progress)
 
         self._command_bar = self._build_footer()
+        self._footer_panel = self._command_bar
         root.addWidget(self._command_bar)
 
         # Persistent maker's mark: remains visible in both Focus View and the
@@ -6802,6 +7067,7 @@ class MainWindow(QMainWindow):
         self._presentation_progress_finish_sig.connect(self._presentation_progress.finish)
         self._presentation_progress_hide_sig.connect(self._presentation_progress.dismiss)
         self._ui_command_sig.connect(self._handle_ui_command)
+        self._intro_prepared_sig.connect(self._on_intro_voice_prepared)
 
 
         # ── Popup System Initialization ────────────────────────────────────────
@@ -6842,6 +7108,25 @@ class MainWindow(QMainWindow):
         # variables and remembered keys are never trusted merely because they
         # were present on an earlier run.
         self._ready = False
+        completed, greeting_enabled = _load_intro_settings()
+        self._intro_should_play = not completed or greeting_enabled
+        self._startup_sequence_kind = "tour" if not completed else ("greeting" if greeting_enabled else "")
+        self._startup_chapters: tuple[IntroChapter, ...] = ()
+        self._startup_captions: tuple[str, ...] = ()
+        self._startup_narration = ""
+        self._intro_overlay: FirstRunIntroOverlay | None = None
+        self._intro_focus_key = ""
+        self._intro_in_progress = False
+        self._intro_voice_preparing = False
+        self._interaction_gated = True
+        self._manual_tour_replay = False
+        self._pending_ready_after_intro = False
+        self._pending_greeting_enabled = greeting_enabled
+        self._ready_announced = False
+        self._intro_live_groups: list[dict] = []
+        self._intro_original_tab = 0
+        self._intro_presence_was_active = False
+        self.on_tour_state_change = None
         candidate_key = os.environ.get("GEMINI_API_KEY", "").strip()
         candidate_is_saved = False
         try:
@@ -6856,6 +7141,7 @@ class MainWindow(QMainWindow):
             candidate_is_saved = False
 
         self._show_setup()
+        self._start_auto_graphics_detection()
         if candidate_key and self._overlay:
             self._overlay.validate_candidate(
                 candidate_key,
@@ -7055,6 +7341,8 @@ class MainWindow(QMainWindow):
             current_name=current_name,
             current_theme=ThemeManager.current_name(),
             current_graphics=self._graphics_quality,
+            current_graphics_mode=get_graphics_mode(),
+            replay_intro=_load_intro_settings()[1],
         )
         ow, oh = 560, 410
         ov.setGeometry(
@@ -7065,6 +7353,9 @@ class MainWindow(QMainWindow):
         ov.name_changed.connect(self._on_settings_name)
         ov.theme_changed.connect(self._on_settings_theme)
         ov.graphics_changed.connect(self._on_settings_graphics)
+        ov.graphics_mode_changed.connect(self._on_settings_graphics_mode)
+        ov.intro_replay_changed.connect(self._on_intro_replay_changed)
+        ov.tour_replay_requested.connect(self._request_manual_tour_replay)
         ov.show()
         self._settings_overlay = ov
 
@@ -7077,6 +7368,23 @@ class MainWindow(QMainWindow):
 
     def _on_settings_graphics(self, quality: str):
         self._apply_graphics_quality_live(quality)
+
+    def _on_settings_graphics_mode(self, mode: str):
+        settings = _read_ui_settings()
+        settings["graphics_quality_mode"] = "auto" if mode == "auto" else "manual"
+        UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        if mode == "auto":
+            self._start_auto_graphics_detection()
+
+    def _on_intro_replay_changed(self, enabled: bool):
+        settings = _read_ui_settings()
+        settings.pop("intro_every_launch", None)
+        settings["startup_greeting_enabled"] = bool(enabled)
+        settings["intro_version"] = INTRO_SEQUENCE_VERSION
+        UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UI_SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        self._pending_greeting_enabled = bool(enabled)
 
     def _show_vision_preview(self, source: str):
         if self._vision_preview is None:
@@ -7383,13 +7691,12 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cw = self.centralWidget()
+        if getattr(self, "_startup_backdrop", None) is not None:
+            self._startup_backdrop.setGeometry(cw.rect())
         if self._overlay and self._overlay.isVisible():
-            ow, oh = 460, 420
-            self._overlay.setGeometry(
-                (cw.width()  - ow) // 2,
-                (cw.height() - oh) // 2,
-                ow, oh,
-            )
+            self._overlay._center_in_parent()
+        if getattr(self, "_intro_overlay", None) is not None:
+            self._intro_overlay.setGeometry(cw.rect())
         if self._name_overlay and self._name_overlay.isVisible():
             ow, oh = 420, 310
             self._name_overlay.setGeometry(
@@ -7407,9 +7714,13 @@ class MainWindow(QMainWindow):
 
     def _update_metrics(self):
         snap = _get_metrics()
+        if hasattr(snap, "snapshot"):
+            snap = snap.snapshot()
+        if not isinstance(snap, dict):
+            snap = {}
 
         # CPU
-        cpu = snap["cpu"]
+        cpu = float(snap.get("cpu", -1.0))
         if cpu <= 0:
             try:
                 import psutil as _psu
@@ -7421,7 +7732,7 @@ class MainWindow(QMainWindow):
             self._spark_cpu.set_value("{:.0f}".format(cpu), cpu / 100.0, "%")
 
         # MEM
-        mem = snap["mem"]
+        mem = float(snap.get("mem", -1.0))
         if mem <= 0:
             try:
                 import psutil as _psu
@@ -7433,15 +7744,25 @@ class MainWindow(QMainWindow):
             self._spark_mem.set_value("{:.0f}".format(mem), mem / 100.0, "%")
 
         # NET
-        net = snap["net"]
-        if net < 1.0:
+        net = float(snap.get("net", -1.0))
+        if net < 0:
+            net_str = "N/A"
+            net_pct = 0
+            self._bar_net.set_value(net_pct, net_str)
+            if hasattr(self, '_spark_net'):
+                self._spark_net.set_value(net_str, 0.0, "")
+        elif net < 1.0:
             net_str = f"{net*1024:.0f}KB/s"
+            net_pct = min(100, net * 10)
+            self._bar_net.set_value(net_pct, net_str)
+            if hasattr(self, '_spark_net'):
+                self._spark_net.set_value(net_str, net_pct / 100.0, "")
         else:
             net_str = f"{net:.1f}MB/s"
-        net_pct = min(100, net * 10)  # 10 MB/s = %100
-        self._bar_net.set_value(net_pct, net_str)
-        if hasattr(self, '_spark_net'):
-            self._spark_net.set_value(net_str, net_pct / 100.0, "")
+            net_pct = min(100, net * 10)
+            self._bar_net.set_value(net_pct, net_str)
+            if hasattr(self, '_spark_net'):
+                self._spark_net.set_value(net_str, net_pct / 100.0, "")
 
         # GPU — cache chip/VRAM from system_profiler, simulate load
         if not getattr(self, '_gpu_info_cached', False):
@@ -8083,7 +8404,7 @@ class MainWindow(QMainWindow):
         self._voice_combo.hide()
         for label, value in VOICE_OPTIONS:
             self._voice_combo.addItem(label, value)
-        self._voice_combo.setCurrentIndex(0)
+        self._voice_combo.setCurrentIndex(self._voice_combo.findData("charon"))
         self._voice_combo.currentTextChanged.connect(self._on_voice_changed)
 
         return w
@@ -8360,7 +8681,7 @@ class MainWindow(QMainWindow):
         if isinstance(voice_name, str) and voice_name:
             return voice_name
         label = self._voice_combo.currentText().strip().lower()
-        return VOICE_LABEL_TO_VALUE.get(label, "puck")
+        return VOICE_LABEL_TO_VALUE.get(label, "charon")
 
     def _on_voice_changed(self, _voice_label: str):
         """Handle voice selection change"""
@@ -8423,6 +8744,11 @@ class MainWindow(QMainWindow):
         try:
             txt = str(txt or "").strip()
             if not txt:
+                return
+            if (not getattr(self, "_ready", True)
+                    or getattr(self, "_interaction_gated", False)
+                    or getattr(self, "_intro_in_progress", False)
+                    or getattr(self, "_intro_voice_preparing", False)):
                 return
             self._log.append_log(f"You: {txt}")
             normalized = re.sub(r"[^a-z ]+", " ", txt.lower())
@@ -8581,12 +8907,7 @@ class MainWindow(QMainWindow):
                 break
 
         # Tool log feeding — forward SYS/tool lines to tool widget
-        if any(text.startswith(p) for p in ("SYS:", "ERR:", "FILE:")):
-            try:
-                self._tool_sig.emit(text)
-            except Exception:
-                pass
-        elif "🔧" in text or "📞" in text or "→" in text:
+        if "🔧" in text or "📞" in text or "→" in text:
             try:
                 self._tool_sig.emit(text)
             except Exception:
@@ -8608,18 +8929,18 @@ class MainWindow(QMainWindow):
 
     def _load_saved_voice(self):
         try:
-            if API_FILE.exists() and hasattr(self, '_voice_combo'):
-                d = json.loads(API_FILE.read_text(encoding="utf-8"))
-                voice_name = d.get("voice_name", "puck")
+            if hasattr(self, '_voice_combo'):
+                d = json.loads(API_FILE.read_text(encoding="utf-8")) if API_FILE.exists() else {}
+                voice_name = d.get("voice_name", d.get("tts_voice_id", "charon"))
                 if isinstance(voice_name, str):
                     voice_name = voice_name.strip().lower()
                 if voice_name not in VOICE_VALUE_TO_LABEL:
-                    voice_name = "puck"
+                    voice_name = "charon"
                 index = self._voice_combo.findData(voice_name)
                 if index >= 0:
                     self._voice_combo.setCurrentIndex(index)
                 else:
-                    self._voice_combo.setCurrentIndex(0)
+                    self._voice_combo.setCurrentIndex(self._voice_combo.findData("charon"))
                 os.environ["GEMINI_VOICE_NAME"] = self._get_selected_voice()
         except Exception:
             pass
@@ -8632,19 +8953,17 @@ class MainWindow(QMainWindow):
         self._voice_combo.blockSignals(False)
 
     def _show_setup(self):
-        ov = SetupOverlay(self.centralWidget())
         cw = self.centralWidget()
-        ow, oh = 460, 420
-        ov.setGeometry(
-            (cw.width()  - ow) // 2,
-            (cw.height() - oh) // 2,
-            ow, oh,
-        )
+        self._ensure_startup_backdrop()
+        ov = SetupOverlay(cw, replay_every_launch=self._pending_greeting_enabled)
+        ov.setFixedSize(460, 540)
         ov.done.connect(self._on_setup_done)
-        ov.show()
         self._overlay = ov
+        ov.show()
+        ov.raise_()
+        ov._center_in_parent()
 
-    def _on_setup_done(self, key: str, os_name: str, remember_key: bool):
+    def _legacy_on_setup_done(self, key: str, os_name: str, remember_key: bool):
         from core.api_key_validator import normalize_gemini_api_key
 
         normalized_key = normalize_gemini_api_key(key)
@@ -8697,6 +9016,370 @@ class MainWindow(QMainWindow):
         self._log.append_log("SYS: JARVIS MARK XXXIX - ALL SYSTEMS NOMINAL")
         # After setup: show voice popup first, then name popup
         self._show_voice_select_then_name()
+
+    def _ensure_startup_backdrop(self):
+        cw = self.centralWidget()
+        if cw is None:
+            return
+        backdrop = getattr(self, "_startup_backdrop", None)
+        if backdrop is None:
+            backdrop = QWidget(cw)
+            backdrop.setObjectName("StartupBackdrop")
+            backdrop.setAccessibleName("JARVIS startup setup")
+            backdrop.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            backdrop.setStyleSheet(f"background: {C.BG};")
+            self._startup_backdrop = backdrop
+        backdrop.setGeometry(cw.rect())
+        backdrop.show()
+        backdrop.lower()
+        if getattr(self, "_overlay", None) is not None:
+            self._overlay.raise_()
+
+    def _clear_startup_backdrop(self):
+        backdrop = getattr(self, "_startup_backdrop", None)
+        if backdrop is not None:
+            backdrop.hide()
+            backdrop.deleteLater()
+            self._startup_backdrop = None
+
+    def _on_setup_done(self, key: str, os_name: str, remember_key: bool):
+        from core.api_key_validator import normalize_gemini_api_key, validate_gemini_api_key
+
+        normalized = normalize_gemini_api_key(key)
+        overlay = self._overlay
+        if overlay is not None:
+            self._pending_greeting_enabled = overlay.replay_intro_enabled()
+        completed, _saved_greeting = _load_intro_settings()
+        self._intro_should_play = (not completed) or self._pending_greeting_enabled
+        self._startup_sequence_kind = "tour" if not completed else (
+            "greeting" if self._pending_greeting_enabled else ""
+        )
+        verified = getattr(overlay, "_verified_key", "") if overlay is not None else ""
+        if not normalized or normalized != verified:
+            if overlay is not None:
+                overlay._key_input.setText(normalized)
+                overlay.set_validating()
+
+            def _validate():
+                result = validate_gemini_api_key(normalized)
+                if overlay is not None:
+                    overlay.validation_finished.emit(
+                        result.valid, result.message, normalized, remember_key
+                    )
+
+            threading.Thread(target=_validate, daemon=True).start()
+            return
+
+        self._finish_setup_after_key_validation(
+            normalized, os_name, remember_key,
+            ApiKeyValidationResult(True, "API key validated."),
+        )
+
+    def _finish_setup_after_key_validation(self, key, os_name, remember_key, result):
+        if not result.valid:
+            if self._overlay is not None:
+                self._overlay.set_validation_error(result.message)
+            self._ready = False
+            return
+        if remember_key:
+            try:
+                get_secret_store().set("gemini_api_key", key)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._log.append_log(f"ERR: Could not save key to keychain: {exc}")
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        try:
+            cfg = json.loads(API_FILE.read_text(encoding="utf-8")) if API_FILE.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            cfg = {}
+        cfg.pop("gemini_api_key", None)
+        cfg["os_system"] = os_name
+        API_FILE.write_text(json.dumps(cfg, indent=4), encoding="utf-8")
+        os.environ["GEMINI_API_KEY"] = key
+        self._ready = False
+        self._pending_ready_after_intro = True
+        self._interaction_gated = True
+        if self._intro_should_play:
+            self._prepare_intro_voice()
+        else:
+            if self._overlay is not None:
+                self._overlay.hide()
+                self._overlay = None
+            self._clear_startup_backdrop()
+            self._continue_after_intro()
+
+    def _prepare_intro_voice(self):
+        kind = self._startup_sequence_kind or "greeting"
+        if kind == "tour":
+            self._startup_chapters = _tour_chapters(datetime.now())
+            self._startup_captions = tuple(item.caption for item in self._startup_chapters)
+            self._startup_narration = " ".join(self._startup_captions)
+        else:
+            self._startup_chapters = ()
+            self._startup_captions = FirstRunIntroOverlay._CAPTIONS
+            self._startup_narration = " ".join(self._startup_captions)
+        self._intro_voice_preparing = True
+        voice = self._get_selected_voice()
+        key = os.environ.get("GEMINI_API_KEY", "").strip()
+        captions = self._startup_captions if kind == "tour" else None
+
+        def _prepare():
+            ready, message = _prepare_intro_voice_cache(
+                voice, self._startup_narration, key,
+                sequence_kind=kind, captions=captions,
+            )
+            self._intro_prepared_sig.emit(ready, message)
+
+        threading.Thread(target=_prepare, name="jarvis-intro-prepare", daemon=True).start()
+
+    def _on_intro_voice_prepared(self, ready: bool, message: str):
+        self._intro_voice_preparing = False
+        if ready:
+            self._start_first_run_intro()
+        else:
+            self._on_intro_playback_failed(message or "Gemini could not prepare the introduction.")
+
+    def _start_first_run_intro(self):
+        try:
+            kind = self._startup_sequence_kind or "greeting"
+            if kind == "tour":
+                self._prepare_live_intro_widgets("tour")
+                self._popup_manager.dismiss_all_popups()
+            if self._overlay is not None:
+                self._overlay.hide()
+            self._intro_in_progress = True
+            self._interaction_gated = True
+            self._intro_overlay = FirstRunIntroOverlay(
+                self.centralWidget(),
+                duration_s=(FirstRunIntroOverlay._TOUR_DURATION_S if kind == "tour"
+                            else FirstRunIntroOverlay._GREETING_DURATION_S),
+                speak=True,
+                voice_name=self._get_selected_voice(),
+                api_key=os.environ.get("GEMINI_API_KEY", ""),
+                chapters=self._startup_chapters,
+                narration=self._startup_narration,
+                captions=self._startup_captions,
+                sequence_kind=kind,
+            )
+            self._intro_overlay.setGeometry(self.centralWidget().rect())
+            self._intro_overlay.caption_changed.connect(self._show_intro_caption)
+            self._intro_overlay.chapter_changed.connect(self._on_intro_chapter_changed)
+            self._intro_overlay._speech_error.connect(self._on_intro_playback_failed)
+            self._intro_overlay.finished.connect(self._on_intro_finished)
+            self._intro_overlay.show()
+            self._intro_overlay.raise_()
+            self._intro_overlay._start_narration()
+        except Exception as exc:
+            traceback.print_exc()
+            self._intro_terminal_report("FAILED", str(exc))
+            self._on_intro_playback_failed(str(exc), report=False)
+
+    def _intro_terminal_report(self, state: str, detail: str = ""):
+        if state == "FAILED":
+            self._log.append_log(f"ERR: Introduction failed: {detail}")
+        elif state == "COMPLETED":
+            self._log.append_log("SYS: Introduction completed.")
+
+    def _on_intro_playback_failed(self, message: str, report: bool = True):
+        overlay = getattr(self, "_intro_overlay", None)
+        if overlay is not None:
+            overlay.stop_speech()
+            overlay.hide()
+            overlay.deleteLater()
+            self._intro_overlay = None
+        if self._startup_sequence_kind == "tour":
+            self._mission._switch_tab(0)
+            self._restore_live_intro_widgets(handoff_to_comms=True)
+        self._intro_in_progress = False
+        self._intro_voice_preparing = False
+        self._interaction_gated = False
+        if self._manual_tour_replay:
+            self._manual_tour_replay = False
+            if self.on_tour_state_change:
+                self.on_tour_state_change(False)
+        if report:
+            self._intro_terminal_report("FAILED", message)
+        if self._pending_ready_after_intro and self._overlay is not None:
+            self._overlay.set_validation_error(message)
+            self._overlay.show()
+            self._overlay.raise_()
+            self._overlay._center_in_parent()
+
+    def _on_intro_finished(self):
+        _save_intro_settings(True, self._pending_greeting_enabled)
+        if self._startup_sequence_kind == "tour":
+            self._restore_live_intro_widgets(handoff_to_comms=True)
+        self._intro_in_progress = False
+        if self._intro_overlay is not None:
+            self._intro_overlay.deleteLater()
+            self._intro_overlay = None
+        self._interaction_gated = False
+        self._intro_terminal_report("COMPLETED")
+        if self._manual_tour_replay:
+            self._manual_tour_replay = False
+            if self.on_tour_state_change:
+                self.on_tour_state_change(False)
+        if self._pending_ready_after_intro:
+            self._continue_after_intro()
+        else:
+            self._clear_startup_backdrop()
+
+    def _continue_after_intro(self):
+        self._pending_ready_after_intro = False
+        self._intro_in_progress = False
+        self._intro_voice_preparing = False
+        self._interaction_gated = False
+        setup_overlay = self._overlay
+        self._overlay = None
+        if setup_overlay is not None:
+            setup_overlay.hide()
+            setup_overlay.deleteLater()
+        self._ready = True
+        self._ready_announced = True
+        self._clear_startup_backdrop()
+        self._show_voice_select_then_name()
+
+    def _request_manual_tour_replay(self):
+        if self._interaction_gated or self._intro_in_progress or self._intro_voice_preparing:
+            return
+        self._startup_sequence_kind = "tour"
+        self._startup_chapters = _tour_chapters()
+        self._startup_captions = tuple(item.caption for item in self._startup_chapters)
+        self._startup_narration = " ".join(self._startup_captions)
+        self._manual_tour_replay = True
+        self._intro_in_progress = True
+        self._intro_voice_preparing = True
+        self._interaction_gated = True
+        if self.on_tour_state_change:
+            self.on_tour_state_change(True)
+        self._prepare_intro_voice()
+
+    def _show_intro_caption(self, text: str):
+        self._subtitle.clear_subtitle()
+        self._subtitle.set_text(str(text or ""))
+
+    def _intro_rect_for_widget(self, widget, padding: int = 0) -> QRectF:
+        if widget is None or widget.width() <= 0 or widget.height() <= 0:
+            return QRectF()
+        root = self.centralWidget()
+        overlay = self._intro_overlay or root
+        origin = widget.mapTo(root, QPointF(0, 0).toPoint())
+        if overlay is not root:
+            offset = overlay.geometry().topLeft()
+            origin -= offset
+        rect = QRectF(origin.x(), origin.y(), widget.width(), widget.height())
+        return rect.adjusted(-padding, -padding, padding, padding)
+
+    def _on_intro_chapter_changed(self, focus: str, label: str, tab_index: int):
+        if tab_index >= 0 and not self._command_center_open:
+            self._command_center_open = True
+            self._mission.set_command_center_open(True)
+            for surface in (self._header, self._left_panel, self._right_panel, self._command_bar):
+                surface.show()
+            self._splitter.setSizes([_LEFT_W, max(420, self.width() - _LEFT_W - _RIGHT_W), _RIGHT_W])
+        if tab_index >= 0:
+            self._mission._switch_tab(tab_index)
+        elif focus != "mission_tools" and self._mission._active_tab == 3:
+            self._mission._switch_tab(0)
+        self._intro_focus_key = focus
+        if focus == "input":
+            self._chat_bubble.show()
+            self._chat_bubble._input.show()
+        overlay = getattr(self, "_intro_overlay", None)
+        if overlay is None:
+            return
+        widgets = {
+            "core": self.hud, "subtitles": self._subtitle, "header": self._header,
+            "awareness": self._left_panel, "mission_comms": self._mission,
+            "mission_tasks": self._mission, "mission_assets": self._mission,
+            "mission_tools": self._mission, "input": self._chat_bubble._input,
+            "dock": self._footer_panel, "handoff": self._chat_bubble,
+        }
+        widget = widgets.get(focus, self._ai_core_wrap)
+        rect = self._intro_rect_for_widget(widget, 8 if focus == "core" else 4)
+        if focus == "core" and rect.isValid():
+            diameter = min(rect.width(), rect.height()) * 0.62
+            rect = QRectF(rect.center().x() - diameter / 2,
+                          rect.center().y() - diameter / 2,
+                          diameter, diameter)
+        persistent = (self._intro_rect_for_widget(self._header),)
+        overlay.set_spotlight(rect, label, "ellipse" if focus == "core" else "rect", persistent)
+
+    def _prepare_live_intro_widgets(self, kind: str = "tour"):
+        if not self._intro_live_groups:
+            self._intro_original_tab = self._mission._active_tab
+            self._intro_original_command_center = self._command_center_open
+            if kind == "tour" and not self._command_center_open:
+                self._command_center_open = True
+                self._mission.set_command_center_open(True)
+                for surface in (self._header, self._left_panel, self._right_panel, self._command_bar):
+                    surface.show()
+                self._splitter.setSizes([
+                    _LEFT_W, max(420, self.width() - _LEFT_W - _RIGHT_W), _RIGHT_W
+                ])
+            definitions = (
+                ("core", self._ai_core_wrap, 0.0, 6.0),
+                ("awareness", self._left_panel, 6.0, 9.0),
+                ("communications", self._right_panel, 8.8, 15.0),
+                ("dock", self._footer_panel, 15.0, 18.0),
+            )
+            for name, widget, start, end in definitions:
+                # The tour owns its opacity effects; command-center reveal animations
+                # may replace Qt effects while the chapter is active.
+                original_effect = None
+                original_visible = widget.isVisible()
+                effect = None if name == "dock" else QGraphicsOpacityEffect(widget)
+                if effect is not None:
+                    widget.setGraphicsEffect(effect)
+                    effect.setOpacity(0.0)
+                if name == "dock":
+                    widget.hide()
+                self._intro_live_groups.append({
+                    "name": name, "widget": widget, "start": start, "end": end,
+                    "effect": effect, "original_effect": original_effect,
+                    "original_visible": original_visible, "completed": False,
+                })
+        timer = self._presence_system._presence_tmr
+        self._intro_presence_was_active = timer.isActive()
+        timer.stop()
+
+    def _apply_live_intro_progress(self, seconds: float):
+        position = max(0.0, float(seconds))
+        for group in self._intro_live_groups:
+            widget = group["widget"]
+            start, end = group["start"], group["end"]
+            if group["name"] == "dock":
+                widget.setVisible(position >= start)
+            if position >= end:
+                group["completed"] = True
+                if group["effect"] is not None:
+                    widget.setGraphicsEffect(None)
+                    group["effect"] = None
+            elif position < start:
+                if group["effect"] is not None:
+                    group["effect"].setOpacity(0.0)
+                group["completed"] = False
+            elif group["effect"] is not None:
+                group["effect"].setOpacity(min(1.0, max(0.01, (position - start) / max(0.01, end - start))))
+
+    def _restore_live_intro_widgets(self, handoff_to_comms: bool = False):
+        for group in self._intro_live_groups:
+            widget = group["widget"]
+            if widget.graphicsEffect() is not None:
+                widget.setGraphicsEffect(None)
+            original = group.get("original_effect")
+            if original is not None:
+                try:
+                    widget.setGraphicsEffect(original)
+                except RuntimeError:
+                    widget.setGraphicsEffect(None)
+            widget.setVisible(group.get("original_visible", True))
+        self._intro_live_groups.clear()
+        target_tab = 0 if handoff_to_comms else self._intro_original_tab
+        if not getattr(self, "_intro_original_command_center", True):
+            self._set_command_center(False, announce=False)
+        self._mission._switch_tab(target_tab)
+        if self._intro_presence_was_active:
+            self._presence_system._presence_tmr.start(15000)
 
     def _check_and_show_name_signin(self):
         """Show the name sign-in overlay only if no name is saved in memory."""
@@ -8978,6 +9661,9 @@ class MainWindow(QMainWindow):
             cfg = {}
         cfg["tts_provider"] = provider
         cfg["tts_voice_id"] = voice_id
+        if provider == "gemini":
+            cfg["voice_name"] = voice_id
+            os.environ["GEMINI_VOICE_NAME"] = voice_id
         cfg.pop("tts_api_key",  None)   # scrub any legacy plain-text key
         cfg.pop("tts_preset",   None)   # scrub old preset field
         try:
@@ -9004,6 +9690,7 @@ class MainWindow(QMainWindow):
                 self._voice_combo.blockSignals(True)
                 self._voice_combo.setCurrentIndex(idx)
                 self._voice_combo.blockSignals(False)
+            _cache_intro_voice_async(voice_id)
 
         if self.on_tts_provider_change:
             try:
@@ -9051,6 +9738,18 @@ class JarvisUI:
         self._win = MainWindow(face_path)
         self._win.show()
         self.root = _RootShim(self._app)
+
+    @property
+    def operational_ready(self) -> bool:
+        window = self._win
+        return bool(
+            window._ready
+            and not getattr(window, "_interaction_gated", False)
+            and not getattr(window, "_intro_in_progress", False)
+            and not getattr(window, "_intro_voice_preparing", False)
+            and getattr(window, "_intro_overlay", None) is None
+            and getattr(window, "_overlay", None) is None
+        )
 
     @property
     def muted(self) -> bool:

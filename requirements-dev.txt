@@ -1,0 +1,2 @@
+# Development and CI-only tools. Runtime dependencies stay in requirements.txt.
+pytest>=8,<9

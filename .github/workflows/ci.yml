@@ -36,13 +36,27 @@ jobs:
       JARVIS_ENCRYPTION_KEY: ci-encryption-secret-with-sufficient-length
       JARVIS_ENV: test
       AUTO_CREATE_TABLES: "0"
+      JARVIS_QA_MODE: "1"
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: pip }
-      - run: pip install -r requirements.txt
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Prepare isolated QA workspace
+        env:
+          JARVIS_QA_WORKSPACE: ${{ runner.temp }}/jarvis-qa
+        run: mkdir -p "$JARVIS_QA_WORKSPACE"
       - run: alembic upgrade head
-      - run: python -m unittest -v tests.test_phase1_decoupling tests.test_hosted_api tests.test_core_resilience
+      - name: Run full Python suite
+        env:
+          JARVIS_QA_WORKSPACE: ${{ runner.temp }}/jarvis-qa
+        run: python -m pytest -q tests
 
   frontend:
     runs-on: ubuntu-latest
