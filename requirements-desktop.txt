@@ -1,0 +1,43 @@
+# Local PyQt desktop assistant and its optional integrations.
+# Windows-only integrations are guarded by environment markers.
+comtypes; platform_system=="Windows"
+pycaw; platform_system=="Windows"
+pywinauto; platform_system=="Windows"
+
+# cryptography 50 has no macOS x86_64/Python 3.14 wheel; retain the compatible wheel.
+cryptography==48.0.0; platform_system=="Darwin" and platform_machine=="x86_64" and python_version>="3.14"
+cryptography>=44,<51; platform_system!="Darwin"
+beautifulsoup4
+duckduckgo-search
+google-genai
+# Still required by live imports in nine modules; remove after those migrations.
+google-generativeai
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+mss
+numpy
+opencv-python
+playwright
+Pillow
+pandas
+psutil
+pyautogui
+pygetwindow
+pyperclip
+pyqt6
+python-docx
+openpyxl
+python-pptx
+PyMuPDF
+requests
+send2trash
+sounddevice
+youtube-transcript-api
+xlrd
+keyring
+
+# Optional desktop TTS providers.
+elevenlabs
+openai
+soundfile

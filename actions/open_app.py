@@ -1,6 +1,7 @@
 import time
 import subprocess
 import platform
+import re
 import shutil
 
 try:
@@ -66,7 +67,18 @@ _APP_ALIASES: dict[str, dict[str, str]] = {
 
 
 def _normalize(raw: str) -> str:
-    key = raw.lower().strip()
+    cleaned = re.sub(
+        r"^(?:please\s+)?(?:open|launch|start|run)\s+",
+        "",
+        str(raw or "").strip(),
+        flags=re.IGNORECASE,
+    )
+    key = cleaned.lower().strip()
+
+    # Keep the recognized application name readable here; open_app resolves
+    # this canonical name back to the same platform-specific launch target.
+    if key in {"chrome", "google chrome"}:
+        return "Google Chrome"
 
     if key in _APP_ALIASES:
         return _APP_ALIASES[key].get(_SYSTEM, raw)
@@ -231,13 +243,14 @@ def open_app(
         return f"Unsupported operating system: {_SYSTEM}"
 
     normalized = _normalize(app_name)
-    print(f"[open_app] Launching: '{app_name}' → '{normalized}' ({_SYSTEM})")
+    launch_target = _APP_ALIASES.get(normalized.lower(), {}).get(_SYSTEM, normalized)
+    print(f"[open_app] Launching: '{app_name}' → '{launch_target}' ({_SYSTEM})")
 
     if player:
         player.write_log(f"[open_app] {app_name}")
 
     try:
-        if launcher(normalized):
+        if launcher(launch_target):
             return f"Opened {app_name}."
         if normalized.lower() != app_name.lower():
             if launcher(app_name):

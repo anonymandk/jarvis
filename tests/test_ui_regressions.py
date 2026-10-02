@@ -11,9 +11,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 import ui
+from core import intro_tts
+from ui.hud.orb import ActivityVisualizer, ReactorOrb
+from ui.motion import resolve_reduced_motion
 
 
 class _NoSecrets:
@@ -92,12 +97,19 @@ class UIRegressionTests(unittest.TestCase):
             "theme": "nanotech_gold",
         })
 
-    def test_legacy_graphics_setting_migrates_to_auto_until_overridden(self):
+    def test_legacy_graphics_setting_migrates_to_manual_and_survives_auto_detection(self):
         ui.UI_SETTINGS_FILE.write_text(
             json.dumps({"graphics_quality": "high"}),
             encoding="utf-8",
         )
-        self.assertEqual(ui.get_graphics_mode(), "auto")
+        self.assertEqual(ui.get_graphics_mode(), "manual")
+        self.assertEqual(
+            ui.save_auto_graphics_result({"quality": "low", "fingerprint": "late-result"}),
+            "high",
+        )
+        self.assertEqual(ui.get_graphics_quality(), "high")
+        saved = json.loads(ui.UI_SETTINGS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(saved["graphics_quality_mode"], "manual")
         ui.set_graphics_quality("low")
         self.assertEqual(ui.get_graphics_mode(), "manual")
         self.assertEqual(ui.get_graphics_quality(), "low")
@@ -131,8 +143,13 @@ class UIRegressionTests(unittest.TestCase):
         )
         self.assertEqual(set(overlay._graphics_btns), {"auto", "low", "medium", "high"})
         overlay.set_auto_graphics_result("high", "Detected discrete graphics")
-        self.assertIn("HIGH", overlay._graphics_btns["auto"]._desc.text())
+        self.assertIn("Alta", overlay._graphics_btns["auto"]._desc.text())
         self.assertIn("Detected discrete graphics", overlay._graphics_note.text())
+        self.assertGreaterEqual(overlay._s_replay_intro.height(), 40)
+        overlay.refresh_theme()
+        self.assertNotIn("qlineargradient", overlay._graphics_btns["auto"].styleSheet())
+        self.assertIn("border: 2px solid", overlay._graphics_btns["auto"].styleSheet())
+        self.assertIn("border: 1px solid", overlay._graphics_btns["medium"].styleSheet())
         overlay.deleteLater()
 
     def test_explicit_self_quit_commands_route_to_jarvis(self):
@@ -149,23 +166,25 @@ class UIRegressionTests(unittest.TestCase):
     def test_quit_button_is_visible_and_accessible(self):
         button = self.window._quit_btn
         self.assertEqual(button.objectName(), "JarvisQuitButton")
-        self.assertEqual(button.accessibleName(), "Quit JARVIS")
-        self.assertEqual(button.toolTip(), "Quit JARVIS")
+        self.assertEqual(button.accessibleName(), "Sair do JARVIS")
+        self.assertEqual(button.toolTip(), "Sair do JARVIS")
         self.assertFalse(button.isHidden())
 
     def test_dock_uses_crisp_command_rail_visual_language(self):
+        self.window._muted = False
+        self.window._apply_state("IDLE")
         rail = self.window._dock_frame
         style = rail.styleSheet().lower()
         self.assertEqual(rail.objectName(), "JarvisCommandRail")
-        self.assertEqual(rail.accessibleName(), "JARVIS command rail")
+        self.assertEqual(rail.accessibleName(), "Barra de comandos do JARVIS")
         self.assertIsNone(rail.graphicsEffect())
         self.assertNotIn("qlineargradient", style)
         self.assertNotIn("border-radius: 24px", style)
         self.assertIn("border-radius: 6px", style)
         self.assertEqual(self.window._rail_control_track.objectName(), "CommandControlTrack")
-        self.assertEqual(self.window._rail_control_track.accessibleName(), "Command controls")
-        self.assertEqual(self.window._command_title_lbl.text(), "COMMAND RAIL")
-        self.assertIn("LOCAL", self.window._rail_mode_lbl.text())
+        self.assertEqual(self.window._rail_control_track.accessibleName(), "Controles do JARVIS")
+        self.assertEqual(self.window._command_title_lbl.text(), "JARVIS")
+        self.assertIn("espera", self.window._rail_mode_lbl.text().lower())
 
         buttons = rail.findChildren(ui.QPushButton)
         self.assertEqual(len(buttons), 8)
@@ -182,15 +201,15 @@ class UIRegressionTests(unittest.TestCase):
             self.window._quit_btn,
         )
         visible_labels = {button.text().split("·", 1)[0].strip() for button in primary_buttons}
-        self.assertEqual(visible_labels, {"MIC", "VOICE", "NAME", "THEME", "QUIT"})
+        self.assertEqual(visible_labels, {"Microfone ativo", "Voz", "Nome", "Tema", "Sair"})
 
     def test_dock_mute_state_reuses_command_rail_style(self):
         original = self.window._muted
         try:
             self.window._muted = True
             self.window._style_mute_btn()
-            self.assertIn("MUTED", self.window._mute_btn.text())
-            self.assertEqual(self.window._mute_btn.accessibleName(), "Microphone muted")
+            self.assertIn("silenciado", self.window._mute_btn.text().lower())
+            self.assertEqual(self.window._mute_btn.accessibleName(), "Microfone silenciado")
             self.assertIn("border-radius: 5px", self.window._mute_btn.styleSheet())
             self.assertNotIn("border-radius: 17px", self.window._mute_btn.styleSheet())
         finally:
@@ -224,6 +243,17 @@ class UIRegressionTests(unittest.TestCase):
         self.assertNotIn("intro_every_launch", saved)
         self.assertEqual(saved["intro_version"], ui.INTRO_SEQUENCE_VERSION)
 
+    def test_fresh_install_does_not_enable_startup_greeting(self):
+        original = ui.UI_SETTINGS_FILE.read_text(encoding="utf-8")
+        try:
+            ui.UI_SETTINGS_FILE.write_text("{}", encoding="utf-8")
+            self.assertEqual(ui._load_intro_settings(), (False, False))
+            overlay = ui.SetupOverlay()
+            self.assertFalse(overlay.replay_intro_enabled())
+            overlay.deleteLater()
+        finally:
+            ui.UI_SETTINGS_FILE.write_text(original, encoding="utf-8")
+
     def test_legacy_intro_completion_replays_once_after_version_upgrade(self):
         original = ui.UI_SETTINGS_FILE.read_text(encoding="utf-8")
         try:
@@ -231,15 +261,21 @@ class UIRegressionTests(unittest.TestCase):
                 json.dumps({"intro_completed": True, "intro_every_launch": False}),
                 encoding="utf-8",
             )
-            self.assertEqual(ui._load_intro_settings(), (False, True))
+            self.assertEqual(ui._load_intro_settings(), (False, False))
             ui._save_intro_settings(completed=True, greeting_enabled=False)
             self.assertEqual(ui._load_intro_settings(), (True, False))
+            ui.UI_SETTINGS_FILE.write_text(
+                json.dumps({"intro_completed": True, "intro_every_launch": True}),
+                encoding="utf-8",
+            )
+            self.assertEqual(ui._load_intro_settings(), (False, True))
         finally:
             ui.UI_SETTINGS_FILE.write_text(original, encoding="utf-8")
 
     def test_setup_exposes_replay_preference(self):
         overlay = ui.SetupOverlay(replay_every_launch=True)
         self.assertTrue(overlay.replay_intro_enabled())
+        self.assertEqual(overlay._replay_intro.height(), 22)
         overlay._replay_intro.setChecked(False)
         self.assertFalse(overlay.replay_intro_enabled())
         overlay.deleteLater()
@@ -297,7 +333,8 @@ class UIRegressionTests(unittest.TestCase):
     def test_setup_api_guide_opens_official_ai_studio_page(self):
         overlay = ui.SetupOverlay()
         with patch.object(ui.QDesktopServices, "openUrl", return_value=True) as open_url:
-            overlay._open_api_key_page()
+            overlay._guide_button.click()
+            overlay._api_key_link.click()
         self.assertEqual(
             open_url.call_args.args[0].toString(),
             "https://aistudio.google.com/apikey",
@@ -418,8 +455,8 @@ class UIRegressionTests(unittest.TestCase):
 
     def test_settings_copy_distinguishes_greeting_from_interface_tour(self):
         overlay = ui.SettingsOverlay(replay_intro=True)
-        self.assertEqual(overlay._s_replay_intro.text(), "Play greeting at startup")
-        self.assertIn("REPLAY INTERFACE TOUR", overlay._s_replay_tour.text())
+        self.assertEqual(overlay._s_replay_intro.text(), "Reproduzir saudação ao iniciar")
+        self.assertIn("visita guiada", overlay._s_replay_tour.text())
         overlay.deleteLater()
 
     def test_manual_tour_replay_activates_hard_interaction_lock(self):
@@ -480,6 +517,46 @@ class UIRegressionTests(unittest.TestCase):
             ) = original
             self.window._mission._switch_tab(original_tab)
 
+    def test_intro_audio_error_releases_startup_interaction_gate(self):
+        original = (
+            self.window._startup_sequence_kind,
+            self.window._intro_overlay,
+            self.window._intro_in_progress,
+            self.window._intro_voice_preparing,
+            self.window._interaction_gated,
+            self.window._pending_ready_after_intro,
+            self.window._overlay,
+        )
+        setup_overlay = self.window._overlay
+        setup_was_visible = setup_overlay is not None and setup_overlay.isVisible()
+        self.window._startup_sequence_kind = "greeting"
+        self.window._pending_ready_after_intro = True
+        try:
+            with patch.object(ui.FirstRunIntroOverlay, "_start_narration"):
+                self.window._start_first_run_intro()
+                intro = self.window._intro_overlay
+                self.assertIsNotNone(intro)
+                intro._speech_error.emit("speaker unavailable")
+                self.app.processEvents()
+            self.assertFalse(self.window._interaction_gated)
+            self.assertFalse(self.window._intro_in_progress)
+            self.assertIsNone(self.window._intro_overlay)
+            self.assertIsNotNone(self.window._overlay)
+            self.assertTrue(self.window._overlay.isVisible())
+            self.assertIn("FAILED", self.window._overlay._setup_status.text())
+        finally:
+            (
+                self.window._startup_sequence_kind,
+                self.window._intro_overlay,
+                self.window._intro_in_progress,
+                self.window._intro_voice_preparing,
+                self.window._interaction_gated,
+                self.window._pending_ready_after_intro,
+                self.window._overlay,
+            ) = original
+            if setup_overlay is not None:
+                setup_overlay.setVisible(setup_was_visible)
+
     def test_intro_does_not_force_fullscreen(self):
         source = inspect.getsource(ui.MainWindow._start_first_run_intro)
         self.assertNotIn("showFullScreen", source)
@@ -518,6 +595,7 @@ class UIRegressionTests(unittest.TestCase):
                 overlay._speech_thread.join(timeout=2.0)
                 generate.assert_not_called()
                 play.assert_called_once()
+                self.assertIs(play.call_args.kwargs["stop_event"], overlay._speech_stop)
                 self.assertTrue(cache_path.exists())
                 overlay.stop_speech()
                 overlay.deleteLater()
@@ -659,14 +737,14 @@ class UIRegressionTests(unittest.TestCase):
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=response)
         with (
-            patch("google.genai.Client", return_value=client),
+            patch("core.intro_tts.genai.Client", return_value=client),
         ):
-            pcm = asyncio.run(ui._render_intro_with_live(
+            pcm = asyncio.run(intro_tts.render_intro_with_live(
                 "JARVIS online.", "charon", "test-key"
             ))
         self.assertEqual(pcm, b"\x01\x00" * 64)
         request = client.aio.models.generate_content.await_args.kwargs
-        self.assertEqual(request["model"], ui.INTRO_TTS_MODELS[0])
+        self.assertEqual(request["model"], intro_tts.MODELS[0])
         self.assertEqual(request["contents"], "JARVIS online.")
         config = request["config"]
         self.assertEqual(config.response_modalities, ["AUDIO"])
@@ -676,6 +754,34 @@ class UIRegressionTests(unittest.TestCase):
             "Charon",
         )
         client.close.assert_called_once()
+
+    def test_first_run_audio_renderer_is_host_injected(self):
+        calls = []
+
+        async def render_one(narration, voice_name, api_key):
+            calls.append(("one", narration, voice_name, api_key))
+            return b"\x01\x00"
+
+        async def render_segments(captions, voice_name, api_key):
+            calls.append(("segments", captions, voice_name, api_key))
+            return b"\x02\x00", [0, 2]
+
+        ui._configure_intro_tts_renderers(render_one, render_segments)
+        try:
+            self.assertEqual(
+                asyncio.run(ui._render_intro_with_live("hello", "kore", "secret")),
+                b"\x01\x00",
+            )
+            self.assertEqual(
+                asyncio.run(ui._render_intro_segments_with_live(("a",), "puck", "secret")),
+                (b"\x02\x00", [0, 2]),
+            )
+        finally:
+            ui._configure_intro_tts_renderers(None, None)
+        self.assertEqual(calls, [
+            ("one", "hello", "kore", "secret"),
+            ("segments", ("a",), "puck", "secret"),
+        ])
 
     def test_segmented_intro_renderer_returns_exact_pcm_boundaries(self):
         responses = [
@@ -699,9 +805,9 @@ class UIRegressionTests(unittest.TestCase):
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(side_effect=responses)
         with (
-            patch("google.genai.Client", return_value=client),
+            patch("core.intro_tts.genai.Client", return_value=client),
         ):
-            pcm, boundaries = asyncio.run(ui._render_intro_segments_with_live(
+            pcm, boundaries = asyncio.run(intro_tts.render_intro_segments_with_live(
                 ("First chapter.", "Second chapter."), "charon", "test-key"
             ))
         self.assertEqual(boundaries, [0, 48, 144])
@@ -720,16 +826,14 @@ class UIRegressionTests(unittest.TestCase):
         empty_response = SimpleNamespace(candidates=[])
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=empty_response)
-        with (
-            patch("google.genai.Client", return_value=client),
-        ):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "returned no audio"):
-                asyncio.run(ui._render_intro_segments_with_live(
+                asyncio.run(intro_tts.render_intro_segments_with_live(
                     ("Good evening.",), "charon", "test-key"
                 ))
         self.assertEqual(
             client.aio.models.generate_content.await_count,
-            ui.INTRO_CHAPTER_RENDER_ATTEMPTS * len(ui.INTRO_TTS_MODELS),
+            intro_tts.RENDER_ATTEMPTS * len(intro_tts.MODELS),
         )
 
     def test_segmented_tts_stops_immediately_on_quota_error(self):
@@ -737,9 +841,9 @@ class UIRegressionTests(unittest.TestCase):
         client.aio.models.generate_content = AsyncMock(
             side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
         )
-        with patch("google.genai.Client", return_value=client):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "429"):
-                asyncio.run(ui._render_intro_segments_with_live(
+                asyncio.run(intro_tts.render_intro_segments_with_live(
                     ("Good evening.",), "charon", "test-key"
                 ))
         self.assertEqual(client.aio.models.generate_content.await_count, 1)
@@ -749,9 +853,9 @@ class UIRegressionTests(unittest.TestCase):
         client.aio.models.generate_content = AsyncMock(
             side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
         )
-        with patch("google.genai.Client", return_value=client):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "429"):
-                asyncio.run(ui._render_intro_with_live(
+                asyncio.run(intro_tts.render_intro_with_live(
                     "Good evening.", "kore", "test-key"
                 ))
         self.assertEqual(client.aio.models.generate_content.await_count, 1)
@@ -977,8 +1081,9 @@ class UIRegressionTests(unittest.TestCase):
         self.assertIn("if spotlight.isEmpty():", source)
 
     def test_long_intro_renderer_has_extended_timeout(self):
-        source = inspect.getsource(ui._request_intro_tts)
-        self.assertIn("timeout=90.0", source)
+        self.assertEqual(intro_tts.REQUEST_TIMEOUT_SECONDS, 90.0)
+        source = inspect.getsource(intro_tts._request_intro_tts)
+        self.assertIn("timeout=REQUEST_TIMEOUT_SECONDS", source)
 
     def test_tour_and_greeting_use_distinct_caches(self):
         narration = "JARVIS online."
@@ -1236,6 +1341,10 @@ class UIRegressionTests(unittest.TestCase):
         original_ready = self.window._ready
         original_pending = self.window._pending_ready_after_intro
         original_announced = self.window._ready_announced
+        original_overlay = self.window._overlay
+        setup_overlay = ui.SetupOverlay(self.window.centralWidget())
+        setup_overlay.show()
+        self.window._overlay = setup_overlay
         self.window._ready = False
         self.window._pending_ready_after_intro = True
         self.window._ready_announced = False
@@ -1247,10 +1356,16 @@ class UIRegressionTests(unittest.TestCase):
                 self.window._continue_after_intro()
             self.assertTrue(self.window._ready)
             self.assertTrue(self.window._ready_announced)
+            self.assertIsNone(self.window._overlay)
+            facade = ui.JarvisUI.__new__(ui.JarvisUI)
+            facade._win = self.window
+            self.assertTrue(facade.operational_ready)
         finally:
+            setup_overlay.deleteLater()
             self.window._ready = original_ready
             self.window._pending_ready_after_intro = original_pending
             self.window._ready_announced = original_announced
+            self.window._overlay = original_overlay
 
     def test_splitter_uses_evaluated_stylesheet(self):
         sheet = self.window._splitter.styleSheet()
@@ -1260,7 +1375,10 @@ class UIRegressionTests(unittest.TestCase):
 
     def test_qss_alpha_colors_are_explicit_rgba(self):
         self.assertEqual(ui.qss_rgba("#ff2244", 0x22), "rgba(255, 34, 68, 34)")
-        source = Path(ui.__file__).read_text(encoding="utf-8")
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in Path(ui.__file__).parent.rglob("*.py")
+        )
         self.assertNotRegex(source, r"\{C\.[A-Z_]+\}[0-9A-Fa-f]{2}")
 
     def test_unavailable_hardware_metrics_are_not_fabricated(self):
@@ -1272,6 +1390,162 @@ class UIRegressionTests(unittest.TestCase):
         self.assertEqual(self.window._gpu_pct_lbl.text(), "N/A")
         self.assertEqual(self.window._spark_tmp._value, "N/A")
         self.assertEqual(self.window._gpu_load_bar.value(), 0)
+
+    def test_desktop_state_badges_use_distinct_portuguese_labels(self):
+        expected = {
+            "IDLE": "Em espera", "LISTENING": "Ouvindo", "THINKING": "Processando",
+            "SPEAKING": "Falando", "RECONNECTING": "Reconectando", "ERROR": "Erro",
+            "MUTED": "Microfone silenciado",
+        }
+        for state, label in expected.items():
+            with self.subTest(state=state):
+                self.window._muted = False
+                self.window._apply_state(state)
+                self.assertIn(label, self.window._header_state_lbl.text())
+                self.assertEqual(self.window._orb._state, {
+                    "IDLE": "idle", "LISTENING": "listening", "THINKING": "processing",
+                    "SPEAKING": "speaking", "RECONNECTING": "reconnecting", "ERROR": "error",
+                    "MUTED": "muted",
+                }[state])
+                self.assertEqual(self.window._error_guidance.isHidden(), state != "ERROR")
+        self.assertIn("Consulte Logs", self.window._error_guidance.text())
+        compact = ui.CompactModeWidget()
+        compact.set_state("ERROR")
+        self.assertIn("janela completa", compact._tool_summary.text())
+        self.assertEqual(compact._tool_summary.accessibleName(), "Orientação para recuperar de um erro")
+        compact.set_state("IDLE")
+        self.assertEqual(compact._tool_summary.text(), "Ferramentas · estado não publicado pelo cliente")
+        compact.close()
+        self.assertEqual(self.window._connection_status._rtt_value.text(), "—")
+        self.assertEqual(self.window._connection_status._status_value.text(), "—")
+
+    def test_motion_runs_only_briefly_for_state_transitions(self):
+        orb = ReactorOrb(graphics_quality="low")
+        visualizer = ActivityVisualizer(graphics_quality="low")
+        orb.set_reduced_motion(False)
+        visualizer.set_reduced_motion(False)
+        orb.set_graphics_quality("low")
+        visualizer.set_graphics_quality("low")
+        orb.set_state("listening")
+        visualizer.set_state("listening")
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_graphics_quality("high")
+        visualizer.set_graphics_quality("high")
+        orb.set_state("speaking")
+        visualizer.set_state("speaking")
+        self.assertTrue(orb._timer.isActive())
+        self.assertTrue(visualizer._timer.isActive())
+        QTest.qWait(ui.TOKENS.motion_ms["state_transition"] + 50)
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_state("listening")
+        visualizer.set_state("listening")
+        self.assertTrue(orb._timer.isActive())
+        self.assertTrue(visualizer._timer.isActive())
+        orb.set_reduced_motion(True)
+        visualizer.set_reduced_motion(True)
+        self.assertFalse(orb._timer.isActive())
+        self.assertFalse(visualizer._timer.isActive())
+        orb.set_state("idle")
+        visualizer.set_state("idle")
+        orb.deleteLater()
+        visualizer.deleteLater()
+
+    def test_compact_surface_has_spec_size_and_only_three_recent_messages(self):
+        compact = ui.CompactModeWidget()
+        compact.resize(420, 640)
+        compact.show()
+        self.app.processEvents()
+        self.assertEqual((compact.width(), compact.height()), (420, 640))
+        self.assertGreaterEqual(compact._input.height(), 44)
+        self.assertGreaterEqual(compact._mute_btn.height(), 40)
+        for index in range(5):
+            compact.append_log(f"You: Mensagem {index + 1}")
+        messages = compact._transcript.toPlainText().splitlines()
+        self.assertEqual(len(messages), 5)  # Three records separated by two blank lines.
+        self.assertEqual(messages[0], "Você: Mensagem 3")
+        self.assertEqual(messages[2], "Você: Mensagem 4")
+        self.assertEqual(messages[4], "Você: Mensagem 5")
+        compact.hide()
+        compact.deleteLater()
+        self.app.processEvents()
+
+    def test_transcript_and_log_text_meet_twelve_pixel_floor(self):
+        self.assertGreaterEqual(self.window._chat_bubble._input.font().pointSize(), 14)
+        self.assertGreaterEqual(self.window._mission.log_widget.font().pointSize(), 12)
+        self.window._mission.tool_widget.push("Pesquisando a página solicitada")
+        self.app.processEvents()
+        message_labels = [
+            label for label in self.window._mission.tool_widget.findChildren(ui.QLabel)
+            if label.text() == "Pesquisando a página solicitada"
+        ]
+        self.assertTrue(message_labels)
+        self.assertGreaterEqual(message_labels[0].font().pointSize(), 12)
+
+    def test_tab_key_follows_navigation_conversation_controls_tools_logs_settings(self):
+        for widget in QApplication.topLevelWidgets():
+            if widget is not self.window:
+                widget.hide()
+        for name in (
+            "_overlay", "_intro_overlay", "_settings_overlay", "_voice_overlay",
+            "_name_overlay", "_shortcuts_overlay", "_tts_overlay",
+        ):
+            overlay = getattr(self.window, name, None)
+            if overlay is not None:
+                overlay.hide()
+        self.window._ready = True
+        self.window._interaction_gated = False
+        self.window.show()
+        self.window._set_command_center(True, announce=False)
+        self.window.raise_()
+        self.window.activateWindow()
+        self.app.processEvents()
+        self.window._nav_buttons[0].setFocus()
+        self.app.processEvents()
+        self.assertIs(self.app.focusWidget(), self.window._nav_buttons[0])
+        for _ in range(len(self.window._nav_buttons)):
+            focused = self.app.focusWidget()
+            QTest.keyClick(focused, Qt.Key.Key_Tab)
+            self.app.processEvents()
+        self.assertIs(self.app.focusWidget(), self.window._chat_bubble._input)
+        expected_order = [
+            self.window._mute_btn,
+            self.window._tts_btn,
+            self.window._name_btn,
+            self.window._theme_btn,
+            self.window._mission._tabs[1],
+            self.window._mission._tabs[3],
+            self.window._mission._tabs[0],
+            self.window._mission._tabs[2],
+            self.window._nav_settings_btn,
+            self.window._utility_btn,
+        ]
+        for expected in expected_order:
+            QTest.keyClick(self.app.focusWidget(), Qt.Key.Key_Tab)
+            self.app.processEvents()
+            self.assertIs(self.app.focusWidget(), expected)
+
+    def test_motion_preference_update_preserves_existing_ui_preferences(self):
+        original = {
+            "graphics_quality": "low",
+            "graphics_quality_mode": "manual",
+            "theme": "nanotech_gold",
+            "intro_version": ui.INTRO_SEQUENCE_VERSION,
+            "other_user_preference": {"keep": True},
+        }
+        ui.UI_SETTINGS_FILE.write_text(json.dumps(original), encoding="utf-8")
+        self.window._on_motion_preference_changed("reduced")
+        saved = json.loads(ui.UI_SETTINGS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(saved["motion_preference"], "reduced")
+        for key, value in original.items():
+            self.assertEqual(saved[key], value)
+
+    def test_motion_resolution_honors_explicit_choice_and_system_preference(self):
+        self.assertTrue(resolve_reduced_motion("reduced", system_value=False))
+        self.assertFalse(resolve_reduced_motion("full", system_value=True))
+        self.assertTrue(resolve_reduced_motion("system", system_value=True))
+        self.assertFalse(resolve_reduced_motion("system", system_value=False))
 
 
 

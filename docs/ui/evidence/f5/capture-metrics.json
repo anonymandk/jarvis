@@ -1,0 +1,86 @@
+[
+  {
+    "name": "auth-loading",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "auth",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "onboarding-compact",
+    "width": 420,
+    "height": 640,
+    "documentWidth": 420,
+    "documentHeight": 660
+  },
+  {
+    "name": "state-idle",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-listening",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-processing",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-speaking",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-reconnecting",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-error",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "state-muted",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  },
+  {
+    "name": "populated-minimum",
+    "width": 980,
+    "height": 680,
+    "documentWidth": 980,
+    "documentHeight": 920
+  },
+  {
+    "name": "reduced-motion",
+    "width": 1440,
+    "height": 900,
+    "documentWidth": 1440,
+    "documentHeight": 900
+  }
+]

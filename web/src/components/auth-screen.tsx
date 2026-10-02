@@ -38,32 +38,32 @@ export function AuthScreen({ onSession }: { onSession: (session: Session) => voi
       <section className="entry-identity" aria-labelledby="entry-title">
         <div className="wordmark"><span className="wordmark-mark">J</span> JARVIS</div>
         <div className="entry-reactor" aria-hidden="true"><span /></div>
-        <p className="eyebrow">Personal intelligence system</p>
-        <h1 id="entry-title">Command without friction.</h1>
+        <p className="eyebrow">Sistema pessoal de inteligência</p>
+        <h1 id="entry-title">Comande sem atrito.</h1>
         <p className="entry-copy">
-          Voice, text, research, and creation share one continuous operational context.
+          Voz, texto, pesquisa e criação compartilham o mesmo contexto de trabalho.
         </p>
-        <div className="trust-line"><ShieldCheck size={16} /> Your Gemini key is encrypted before storage.</div>
+        <div className="trust-line"><ShieldCheck size={16} /> Sua chave do Gemini é criptografada antes do armazenamento.</div>
       </section>
 
-      <section className="auth-panel" aria-labelledby="auth-title">
-        <div className="mode-switch" role="tablist" aria-label="Account access">
-          <button role="tab" aria-selected={mode === "login"} onClick={() => setMode("login")}>Sign in</button>
-          <button role="tab" aria-selected={mode === "signup"} onClick={() => setMode("signup")}>Create account</button>
+      <section className="auth-panel" aria-labelledby="auth-title" lang="pt-BR">
+        <div className="mode-switch" role="tablist" aria-label="Acesso à conta">
+          <button role="tab" aria-selected={mode === "login"} onClick={() => setMode("login")}>Entrar</button>
+          <button role="tab" aria-selected={mode === "signup"} onClick={() => setMode("signup")}>Criar conta</button>
         </div>
         <div>
-          <p className="section-index">ACCESS / 01</p>
-          <h2 id="auth-title">{mode === "login" ? "Resume session" : "Establish identity"}</h2>
+          <p className="section-index">ACESSO / 01</p>
+          <h2 id="auth-title">{mode === "login" ? "Retomar sessão" : "Criar identidade"}</h2>
         </div>
         <form onSubmit={submit} className="auth-form">
           {mode === "signup" && (
-            <label>Display name<Input name="display_name" autoComplete="name" required placeholder="How JARVIS should address you" /></label>
+            <label>Como devo chamar você?<Input name="display_name" autoComplete="name" required placeholder="Nome de exibição" /></label>
           )}
-          <label>Email<Input name="email" type="email" autoComplete="email" required placeholder="operator@example.com" /></label>
-          <label>Password<Input name="password" type="password" minLength={10} autoComplete={mode === "login" ? "current-password" : "new-password"} required placeholder="At least 10 characters" /></label>
+          <label>E-mail<Input name="email" type="email" autoComplete="email" required placeholder="voce@exemplo.com" /></label>
+          <label>Senha<Input name="password" type="password" minLength={10} autoComplete={mode === "login" ? "current-password" : "new-password"} required placeholder="Pelo menos 10 caracteres" /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Authorizing" : mode === "login" ? "Enter JARVIS" : "Create secure account"}
+            {pending ? "Autorizando" : mode === "login" ? "Entrar no JARVIS" : "Criar conta segura"}
             {!pending && <ArrowRight size={16} />}
           </Button>
         </form>

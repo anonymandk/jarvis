@@ -15,6 +15,16 @@
 - [Preview overlay 420×640](assets/compact-preview.svg)
 - [Fluxo de estados Mermaid](assets/state-flow.mmd)
 - [Arquitetura UI ↔ núcleo Mermaid](assets/architecture.mmd)
+- [Capturas reais do cliente desktop](evidence/f4/README.md)
+- [Capturas Playwright do cliente web](evidence/f5/README.md)
+- [Relatório F4 desktop](REALITY_CHECK_F4.md)
+- [Relatório F5 web](REALITY_CHECK_F5.md)
+- [Relatório F6 qualidade e segurança](REALITY_CHECK_F6.md)
+- [Relatório F7 documentação e garantia final](REALITY_CHECK_F7.md)
+
+As capturas desktop são screenshots Qt offscreen; as capturas web usam fixtures
+sintéticas de API/WebSocket. Elas comprovam a apresentação dos estados e não
+representam uma sessão Gemini Live ou conexão hospedada real.
 
 Os SVGs são ilustrações vetoriais da especificação, não exports ou screenshots do Figma.
 
