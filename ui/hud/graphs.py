@@ -53,11 +53,11 @@ class MetricBar(QWidget):
             p.setBrush(QBrush(bar_col))
             p.drawRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h), 2, 2)
 
-        p.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.Bold))
         p.setPen(QPen(qcol(C.TEXT_DIM), 1))
         p.drawText(QRectF(8, 5, 50, 14), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._label)
 
-        p.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
         p.setPen(QPen(bar_col if self._text != "--" else qcol(C.TEXT_DIM), 1))
         p.drawText(QRectF(0, 4, W - 6, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, self._text)
 
@@ -91,7 +91,7 @@ class SparklineBar(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Label (left)
-        p.setFont(QFont("Courier New", 6, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"], QFont.Weight.Bold))
         p.setPen(QColor(C.TEXT_DIM))
         label_w = 44
         p.drawText(0, 0, label_w, H, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self._label)
@@ -131,13 +131,13 @@ class SparklineBar(QWidget):
             p.drawPath(path)
 
         # Value (right)
-        p.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Bold))
         p.setPen(QColor(C.WHITE))
         val_x = W - 55
         val_w = 35
         p.drawText(val_x, 0, val_w, H, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, self._value)
         # Unit
-        p.setFont(QFont("Courier New", 6))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"]))
         p.setPen(QColor(C.TEXT_DIM))
         p.drawText(val_x + val_w + 2, 0, 18, H, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self._unit)
 

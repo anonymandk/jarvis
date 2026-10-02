@@ -27,22 +27,22 @@ class VisionPreviewWindow(QWidget):
         self._graphics_quality = "medium"
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(1, 1, 1, 1)
-        root.setSpacing(0)
+        root.setContentsMargins(TOKENS.spacing["legacy_1"], TOKENS.spacing["legacy_1"], TOKENS.spacing["legacy_1"], TOKENS.spacing["legacy_1"])
+        root.setSpacing(TOKENS.spacing["legacy_0"])
 
         self._header = QWidget(self)
         self._header.setObjectName("visionPreviewHeader")
         self._header.setFixedHeight(38)
         header_layout = QHBoxLayout(self._header)
-        header_layout.setContentsMargins(12, 0, 8, 0)
-        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_0"])
+        header_layout.setSpacing(TOKENS.spacing["legacy_8"])
 
         self._live_dot = QLabel("●", self._header)
-        self._live_dot.setFont(QFont(TECH_FONT, 8, QFont.Weight.Medium))
+        self._live_dot.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         self._title = QLabel("VISION LINK", self._header)
-        self._title.setFont(QFont(UI_FONT, 9, QFont.Weight.DemiBold))
+        self._title.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.DemiBold))
         self._source_label = QLabel("SCREEN FEED", self._header)
-        self._source_label.setFont(QFont(TECH_FONT, 7, QFont.Weight.Medium))
+        self._source_label.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.Medium))
         header_layout.addWidget(self._live_dot)
         header_layout.addWidget(self._title)
         header_layout.addStretch(1)
@@ -59,7 +59,7 @@ class VisionPreviewWindow(QWidget):
 
         self._frame = QLabel("INITIALIZING VISION LINK", self)
         self._frame.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._frame.setFont(QFont(TECH_FONT, 8, QFont.Weight.Medium))
+        self._frame.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         self._frame.setMinimumHeight(174)
         self._frame.setAccessibleName("Live vision image")
         root.addWidget(self._frame, stretch=1)
@@ -67,7 +67,7 @@ class VisionPreviewWindow(QWidget):
         self._status = QLabel("LIVE // ANALYZING", self)
         self._status.setFixedHeight(32)
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status.setFont(QFont(TECH_FONT, 7, QFont.Weight.Medium))
+        self._status.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.Medium))
         root.addWidget(self._status)
 
         for draggable in (self._header, self._live_dot, self._title, self._source_label):
@@ -84,15 +84,17 @@ class VisionPreviewWindow(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade.setDuration(180)
-        self._fade.setEasingCurve(QEasingCurve.Type.OutQuart)
+        self._fade.setDuration(TOKENS.motion_ms["legacy_180"])
+        self._fade.setEasingCurve(
+            getattr(QEasingCurve.Type, TOKENS.motion_easing["standard"])
+        )
         self.refresh_theme()
         self.set_graphics_quality(get_graphics_quality())
 
     def refresh_theme(self):
         self.setStyleSheet(f"""
             QWidget#visionPreview {{
-                background: {C.BG}; border: 1px solid {C.BORDER_B}; border-radius: 7px;
+                background: {C.BG}; border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_7']}px;
             }}
             QWidget#visionPreviewHeader {{
                 background: {C.PANEL2}; border: none; border-bottom: 1px solid {C.BORDER};
@@ -107,8 +109,8 @@ class VisionPreviewWindow(QWidget):
         )
         self._close_button.setStyleSheet(f"""
             QPushButton {{
-                color: {C.WHITE_DIM}; background: transparent; border: none; border-radius: 4px;
-                font-family: '{UI_FONT}'; font-size: 15px;
+                color: {C.WHITE_DIM}; background: transparent; border: none; border-radius: {TOKENS.radii['legacy_4']}px;
+                font-family: '{UI_FONT}'; font-size: {TOKENS.font_sizes['legacy_15']}px;
             }}
             QPushButton:hover {{ color: {C.WHITE}; background: {C.RED_BG}; }}
         """)

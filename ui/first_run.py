@@ -24,12 +24,20 @@ INTRO_SEQUENCE_VERSION = 5
 INTRO_PERFORMANCE_VERSION = "pcm-v1"
 INTRO_MASTERING_VERSION = "peak-safe-v1"
 INTRO_SAMPLE_RATE = 24_000
-INTRO_CHAPTER_RENDER_ATTEMPTS = 2
-INTRO_TTS_MODELS = (
-    "gemini-2.5-flash-preview-tts",
-    "gemini-2.5-pro-preview-tts",
-)
 INTRO_VOICE_CACHE_DIR = Path.home() / ".jarvis" / "cache" / "intro"
+
+_intro_tts_renderer: Callable | None = None
+_intro_tts_segmented_renderer: Callable | None = None
+
+
+def _configure_intro_tts_renderers(
+    renderer: Callable | None,
+    segmented_renderer: Callable | None,
+) -> None:
+    """Inject app-owned voice services without coupling UI modules to an SDK."""
+    global _intro_tts_renderer, _intro_tts_segmented_renderer
+    _intro_tts_renderer = renderer
+    _intro_tts_segmented_renderer = segmented_renderer
 
 _GREETING_CAPTIONS = (
     "JARVIS online.",
@@ -211,21 +219,6 @@ def _voice_display_name(voice_name: str) -> str:
     return voice_map.get(str(voice_name).strip().lower(), str(voice_name).strip().title())
 
 
-def _extract_intro_pcm(response) -> bytes:
-    for candidate in getattr(response, "candidates", ()) or ():
-        content = getattr(candidate, "content", None)
-        for part in getattr(content, "parts", ()) or ():
-            inline = getattr(part, "inline_data", None)
-            data = getattr(inline, "data", None)
-            mime_type = str(getattr(inline, "mime_type", "") or "")
-            if data and (not mime_type or mime_type.startswith("audio/")):
-                if isinstance(data, str):
-                    import base64
-                    data = base64.b64decode(data)
-                return bytes(data)
-    return b""
-
-
 def _is_intro_quota_error(error: BaseException) -> bool:
     message = str(error).lower()
     return any(marker in message for marker in (
@@ -233,58 +226,15 @@ def _is_intro_quota_error(error: BaseException) -> bool:
     ))
 
 
-async def _request_intro_tts(client, model: str, narration: str, voice_name: str):
-    from google.genai import types
-
-    config = types.GenerateContentConfig(
-        response_modalities=["AUDIO"],
-        speech_config=types.SpeechConfig(
-            voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                    voice_name=_voice_display_name(voice_name),
-                ),
-            ),
-        ),
-    )
-    return await asyncio.wait_for(
-        client.aio.models.generate_content(
-            model=model,
-            contents=narration,
-            config=config,
-        ),
-        timeout=90.0,
-    )
-
-
 async def _render_intro_with_live(
     narration: str,
     voice_name: str,
     api_key: str,
 ) -> bytes:
-    from google import genai
-
-    client = genai.Client(api_key=api_key)
-    models = tuple(_ui_symbol("INTRO_TTS_MODELS", INTRO_TTS_MODELS))
-    attempts = int(_ui_symbol("INTRO_CHAPTER_RENDER_ATTEMPTS", INTRO_CHAPTER_RENDER_ATTEMPTS))
-    try:
-        last_error: BaseException | None = None
-        for model in models:
-            for _ in range(max(1, attempts)):
-                try:
-                    response = await _ui_symbol("_request_intro_tts")(
-                        client, model, narration, voice_name
-                    )
-                    pcm = _extract_intro_pcm(response)
-                    if pcm:
-                        return pcm
-                    last_error = RuntimeError("Gemini TTS returned no audio.")
-                except Exception as exc:
-                    if _is_intro_quota_error(exc):
-                        raise
-                    last_error = exc
-        raise RuntimeError("Gemini TTS returned no audio.") from last_error
-    finally:
-        client.close()
+    renderer = _intro_tts_renderer
+    if renderer is None:
+        raise RuntimeError("First-run voice rendering is not configured by the application.")
+    return await renderer(narration, voice_name, api_key)
 
 
 async def _render_intro_segments_with_live(
@@ -292,40 +242,10 @@ async def _render_intro_segments_with_live(
     voice_name: str,
     api_key: str,
 ) -> tuple[bytes, list[int]]:
-    from google import genai
-
-    client = genai.Client(api_key=api_key)
-    models = tuple(_ui_symbol("INTRO_TTS_MODELS", INTRO_TTS_MODELS))
-    attempts = int(_ui_symbol("INTRO_CHAPTER_RENDER_ATTEMPTS", INTRO_CHAPTER_RENDER_ATTEMPTS))
-    rendered: list[bytes] = []
-    boundaries = [0]
-    try:
-        for caption in captions:
-            last_error: BaseException | None = None
-            pcm = b""
-            for model in models:
-                for _ in range(max(1, attempts)):
-                    try:
-                        response = await _ui_symbol("_request_intro_tts")(
-                            client, model, caption, voice_name
-                        )
-                        pcm = _extract_intro_pcm(response)
-                        if pcm:
-                            break
-                        last_error = RuntimeError("Gemini TTS returned no audio.")
-                    except Exception as exc:
-                        if _is_intro_quota_error(exc):
-                            raise
-                        last_error = exc
-                if pcm:
-                    break
-            if not pcm:
-                raise RuntimeError("Gemini TTS returned no audio.") from last_error
-            rendered.append(pcm)
-            boundaries.append(boundaries[-1] + len(pcm))
-        return b"".join(rendered), boundaries
-    finally:
-        client.close()
+    renderer = _intro_tts_segmented_renderer
+    if renderer is None:
+        raise RuntimeError("Segmented first-run voice rendering is not configured by the application.")
+    return await renderer(captions, voice_name, api_key)
 
 
 def _generate_intro_speech_pcm(narration: str, voice_name: str, api_key: str) -> bytes:
@@ -713,7 +633,11 @@ class FirstRunIntroOverlay(QWidget):
         )
         caption = self._CAPTIONS[current] if current >= 0 else ""
         painter.setPen(QPen(QColor(C.PRI), 1))
-        painter.setFont(_ui_symbol("QFont")("Arial", 10, _ui_symbol("QFont").Weight.Bold))
+        painter.setFont(_ui_symbol("QFont")(
+            _ui_symbol("UI_FONT"),
+            _ui_symbol("TOKENS").font_sizes["legacy_10"],
+            _ui_symbol("QFont").Weight.Bold,
+        ))
         painter.drawText(
             self.rect().adjusted(44, 34, -44, -100),
             Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,

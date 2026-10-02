@@ -112,6 +112,7 @@ def automated(_args) -> int:
     report.checks.extend([
         _run_check("source compilation", [sys.executable, "-m", "compileall", "-q", "actions", "agent", "api", "awareness", "config", "core", "memory", "main.py", "ui"], env),
         _run_check("dependency consistency", [sys.executable, "-m", "pip", "check"], env),
+        _run_check("UI token contrast", [sys.executable, "scripts/check_ui_contrast.py"], env),
         _run_check("complete unittest suite", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], env),
         _run_check("offscreen UI evidence", [sys.executable, "scripts/qa_ui_probe.py", str(directory / "ui")], env),
         _secret_scan(),
@@ -156,9 +157,9 @@ def automated(_args) -> int:
         "Accessibility": {"score": 2, "finding": "Core setup is keyboard-readable, but explicit accessible names are sparse."},
         "Performance": {"score": 2, "finding": "Graphics profiles exist; the required live soak measurement is still pending."},
         "Responsive Design": {"score": 3, "finding": "Minimum and standard desktop sizes render; display scaling and second-monitor checks remain live."},
-        "Theming": {"score": 2, "finding": "Theme switching exists, but static analysis found extensive hard-coded colors."},
+        "Theming": {"score": 4, "finding": "Color, type, spacing, radius, motion, and contrast values are centralized; UI-specific accessibility checks continue in F4."},
         "Anti-Patterns": {"score": 3, "finding": "The interface is distinctive and task-oriented; some control vocabulary remains inconsistent."},
-        "total": 12,
+        "total": 14,
         "rating": "Acceptable (significant work needed)",
         "anti_pattern_verdict": "Pass with reservations: distinctive JARVIS identity, not a generic generated dashboard.",
     }

@@ -19,15 +19,15 @@ class ShortcutsOverlay(_OverlayBase):
             ShortcutsOverlay {{
                 background: {C.BG};
                 border: 1px solid {C.BORDER_B};
-                border-radius: 8px;
+                border-radius: {TOKENS.radii['legacy_8']}px;
             }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 22, 28, 22)
-        layout.setSpacing(8)
+        layout.setContentsMargins(TOKENS.spacing["legacy_28"], TOKENS.spacing["legacy_22"], TOKENS.spacing["legacy_28"], TOKENS.spacing["legacy_22"])
+        layout.setSpacing(TOKENS.spacing["legacy_8"])
 
-        def _lbl(txt, size=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter):
+        def _lbl(txt, size=TOKENS.font_sizes["legacy_9"], bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter):
             w = QLabel(txt)
             w.setAlignment(align)
             w.setFont(QFont(UI_FONT, size,
@@ -36,14 +36,14 @@ class ShortcutsOverlay(_OverlayBase):
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        layout.addWidget(_lbl("◈  KEYBOARD SHORTCUTS", 13, True))
-        layout.addSpacing(4)
+        layout.addWidget(_lbl("◈  KEYBOARD SHORTCUTS", TOKENS.font_sizes["legacy_13"], True))
+        layout.addSpacing(TOKENS.spacing["legacy_4"])
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER};")
         layout.addWidget(sep)
-        layout.addSpacing(6)
+        layout.addSpacing(TOKENS.spacing["legacy_6"])
 
         shortcuts = [
             ("F4",       "Toggle Microphone Mute"),
@@ -58,28 +58,28 @@ class ShortcutsOverlay(_OverlayBase):
 
         for key, desc in shortcuts:
             row = QHBoxLayout()
-            row.setSpacing(10)
+            row.setSpacing(TOKENS.spacing["legacy_10"])
 
             key_lbl = QLabel(key)
             key_lbl.setFixedWidth(80)
-            key_lbl.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+            key_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
             key_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             key_lbl.setStyleSheet(f"""
                 color: {C.PRI}; background: {C.PRI_GHO};
-                border: 1px solid {C.BORDER}; border-radius: 3px;
-                padding: 2px 6px;
+                border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_3']}px;
+                padding: {TOKENS.spacing['legacy_2']}px {TOKENS.spacing['legacy_6']}px;
             """)
             row.addWidget(key_lbl)
 
             desc_lbl = QLabel(desc)
-            desc_lbl.setFont(QFont("Courier New", 9))
+            desc_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"]))
             desc_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
             row.addWidget(desc_lbl, stretch=1)
 
             layout.addLayout(row)
 
-        layout.addSpacing(8)
-        layout.addWidget(_lbl("Press Esc or Ctrl+/ to close", 7, color=C.TEXT_DIM))
+        layout.addSpacing(TOKENS.spacing["legacy_8"])
+        layout.addWidget(_lbl("Press Esc or Ctrl+/ to close", TOKENS.font_sizes["legacy_7"], color=C.TEXT_DIM))
 
         self._setup_overlay_base(close_callback=self.hide)
 
@@ -110,21 +110,21 @@ class GraphicsQualityCard(QPushButton):
         self.setMinimumHeight(78)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(5)
+        layout.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_10"])
+        layout.setSpacing(TOKENS.spacing["legacy_5"])
         self._title = QLabel(title, self)
-        self._title.setFont(QFont(UI_FONT, 9, QFont.Weight.DemiBold))
+        self._title.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.DemiBold))
         self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         layout.addWidget(self._title)
 
         data_row = QHBoxLayout()
-        data_row.setContentsMargins(0, 0, 0, 0)
-        data_row.setSpacing(4)
+        data_row.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        data_row.setSpacing(TOKENS.spacing["legacy_4"])
         self._fps = QLabel(fps, self)
-        self._fps.setFont(QFont(TECH_FONT, 8, QFont.Weight.Medium))
+        self._fps.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         self._detail = QLabel(detail, self)
         self._desc = self._detail
-        self._detail.setFont(QFont(UI_FONT, 8, QFont.Weight.Normal))
+        self._detail.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Normal))
         for label in (self._fps, self._detail):
             label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             data_row.addWidget(label)
@@ -140,7 +140,7 @@ class GraphicsQualityCard(QPushButton):
                         x1:0, y1:0, x2:1, y2:1,
                         stop:0 {C.PRI_GHO}, stop:0.78 {C.DARK2}, stop:1 {C.PRI_GLOW}
                     );
-                    border: 1px solid {C.PRI}; border-radius: 6px;
+                    border: 1px solid {C.PRI}; border-radius: {TOKENS.radii['legacy_6']}px;
                 }}
                 QPushButton:hover {{ background: {C.PRI_GLOW}; }}
             """)
@@ -151,7 +151,7 @@ class GraphicsQualityCard(QPushButton):
             self.setStyleSheet(f"""
                 QPushButton {{
                     background: {C.DARK};
-                    border: 1px solid {C.BORDER}; border-radius: 6px;
+                    border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_6']}px;
                 }}
                 QPushButton:hover {{ border-color: {C.BORDER_B}; background: {C.PANEL2}; }}
             """)
@@ -181,7 +181,7 @@ class SettingsOverlay(_OverlayBase):
             SettingsOverlay {{
                 background: {C.BG};
                 border: 1px solid {C.BORDER_B};
-                border-radius: 8px;
+                border-radius: {TOKENS.radii['legacy_8']}px;
             }}
         """)
 
@@ -193,33 +193,35 @@ class SettingsOverlay(_OverlayBase):
         self._theme_labels: list[tuple[QLabel, str]] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 18, 24, 18)
-        layout.setSpacing(6)
+        layout.setContentsMargins(TOKENS.spacing["legacy_24"], TOKENS.spacing["legacy_18"], TOKENS.spacing["legacy_24"], TOKENS.spacing["legacy_18"])
+        layout.setSpacing(TOKENS.spacing["legacy_6"])
 
-        def _lbl(txt, size=9, bold=False, color=None, align=Qt.AlignmentFlag.AlignCenter,
+        def _lbl(txt, size=TOKENS.font_sizes["legacy_9"], bold=False, color=None, align=Qt.AlignmentFlag.AlignCenter,
                  color_role="PRI"):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", size,
+            w.setFont(QFont(TECH_FONT, size,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
             resolved = color if color is not None else getattr(C, color_role)
             w.setStyleSheet(f"color: {resolved}; background: transparent;")
             self._theme_labels.append((w, color_role))
             return w
 
-        settings_title = _lbl("◈  SETTINGS", 13, True)
-        settings_title_font = QFont(UI_FONT, 13, QFont.Weight.DemiBold)
-        settings_title_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
+        settings_title = _lbl("◈  SETTINGS", TOKENS.font_sizes["legacy_13"], True)
+        settings_title_font = QFont(UI_FONT, TOKENS.font_sizes["legacy_13"], QFont.Weight.DemiBold)
+        settings_title_font.setLetterSpacing(
+            QFont.SpacingType.AbsoluteSpacing, TOKENS.letter_spacing['tight']
+        )
         settings_title.setFont(settings_title_font)
         layout.addWidget(settings_title)
-        layout.addSpacing(2)
+        layout.addSpacing(TOKENS.spacing["legacy_2"])
 
         # Tab bar
         tab_bar = QWidget()
         tab_bar.setFixedHeight(26)
         tb_lay = QHBoxLayout(tab_bar)
-        tb_lay.setContentsMargins(0, 0, 0, 0)
-        tb_lay.setSpacing(4)
+        tb_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        tb_lay.setSpacing(TOKENS.spacing["legacy_4"])
 
         self._s_tabs: list[QPushButton] = []
         self._s_tab_names = ["IDENTITY", "THEME", "GRAPHICS"]
@@ -228,7 +230,7 @@ class SettingsOverlay(_OverlayBase):
         for i, name in enumerate(self._s_tab_names):
             btn = QPushButton(name)
             btn.setFixedHeight(23)
-            btn.setFont(QFont(UI_FONT, 8, QFont.Weight.Medium))
+            btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, idx=i: self._switch_s_tab(idx))
             self._s_tabs.append(btn)
@@ -251,21 +253,21 @@ class SettingsOverlay(_OverlayBase):
         id_page = QWidget()
         id_page.setStyleSheet("background: transparent;")
         id_lay = QVBoxLayout(id_page)
-        id_lay.setContentsMargins(4, 8, 4, 4)
-        id_lay.setSpacing(8)
+        id_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
+        id_lay.setSpacing(TOKENS.spacing["legacy_8"])
 
-        id_lay.addWidget(_lbl("◈  YOUR NAME", 9, bold=True, color_role="PRI",
+        id_lay.addWidget(_lbl("◈  YOUR NAME", TOKENS.font_sizes["legacy_9"], bold=True, color_role="PRI",
                               align=Qt.AlignmentFlag.AlignLeft))
         self._s_name_input = QLineEdit()
         self._s_name_input.setText(current_name)
         self._s_name_input.setPlaceholderText("e.g. Tony, Mirsab, Alex...")
-        self._s_name_input.setFont(QFont(UI_FONT, 10))
+        self._s_name_input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
         self._s_name_input.setFixedHeight(32)
         self._s_name_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.WHITE};
-                border: 1px solid {C.BORDER_B}; border-radius: 4px;
-                padding: 4px 10px 4px 28px;
+                border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_4']}px;
+                padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_28']}px;
             }}
             QLineEdit:focus {{
                 border: 1px solid {C.PRI};
@@ -276,13 +278,13 @@ class SettingsOverlay(_OverlayBase):
 
         save_name = QPushButton("▸  UPDATE IDENTITY")
         save_name.setFixedHeight(36)
-        save_name.setFont(QFont(UI_FONT, 9, QFont.Weight.Medium))
+        save_name.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Medium))
         save_name.setCursor(Qt.CursorShape.PointingHandCursor)
         save_name.setStyleSheet(f"""
             QPushButton {{
                 background: {C.PRI_GHO}; color: {C.PRI};
-                border: 1px solid {C.PRI}; border-radius: 4px;
-                letter-spacing: 1px;
+                border: 1px solid {C.PRI}; border-radius: {TOKENS.radii['legacy_4']}px;
+                letter-spacing: {TOKENS.letter_spacing['subtle']}px;
             }}
             QPushButton:hover {{
                 background: {qss_rgba(C.PRI, 34)};
@@ -311,10 +313,10 @@ class SettingsOverlay(_OverlayBase):
         th_page = QWidget()
         th_page.setStyleSheet("background: transparent;")
         th_lay = QVBoxLayout(th_page)
-        th_lay.setContentsMargins(4, 8, 4, 4)
-        th_lay.setSpacing(6)
+        th_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
+        th_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
-        th_lay.addWidget(_lbl("COLOR THEME", 8, color_role="TEXT_DIM",
+        th_lay.addWidget(_lbl("COLOR THEME", TOKENS.font_sizes["legacy_8"], color_role="TEXT_DIM",
                               align=Qt.AlignmentFlag.AlignLeft))
 
         self._theme_btns: dict[str, QPushButton] = {}
@@ -322,7 +324,7 @@ class SettingsOverlay(_OverlayBase):
             display = ThemeManager.theme_display_name(key)
             btn = QPushButton(f"  {display}")
             btn.setFixedHeight(32)
-            btn.setFont(QFont(UI_FONT, 9, QFont.Weight.Medium))
+            btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Medium))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, k=key: self._select_theme(k))
             self._theme_btns[key] = btn
@@ -335,19 +337,19 @@ class SettingsOverlay(_OverlayBase):
         gfx_page = QWidget()
         gfx_page.setStyleSheet("background: transparent;")
         gfx_lay = QVBoxLayout(gfx_page)
-        gfx_lay.setContentsMargins(4, 8, 4, 4)
-        gfx_lay.setSpacing(10)
+        gfx_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_4"])
+        gfx_lay.setSpacing(TOKENS.spacing["legacy_10"])
         gfx_lay.addWidget(_lbl(
-            "GRAPHICS QUALITY", 8, bold=True, color_role="WHITE_DIM",
+            "GRAPHICS QUALITY", TOKENS.font_sizes["legacy_8"], bold=True, color_role="WHITE_DIM",
             align=Qt.AlignmentFlag.AlignLeft,
         ))
         gfx_lay.addWidget(_lbl(
             "Choose a performance profile. Changes apply instantly.",
-            8, color_role="WHITE_DIM", align=Qt.AlignmentFlag.AlignLeft,
+            TOKENS.font_sizes["legacy_8"], color_role="WHITE_DIM", align=Qt.AlignmentFlag.AlignLeft,
         ))
 
         gfx_row = QHBoxLayout()
-        gfx_row.setSpacing(8)
+        gfx_row.setSpacing(TOKENS.spacing["legacy_8"])
         self._graphics_btns: dict[str, GraphicsQualityCard] = {}
         for quality in ("auto", "low", "medium", "high"):
             button = GraphicsQualityCard(quality)
@@ -357,7 +359,7 @@ class SettingsOverlay(_OverlayBase):
         gfx_lay.addLayout(gfx_row)
 
         self._graphics_note = QLabel("")
-        self._graphics_note.setFont(QFont(UI_FONT, 8))
+        self._graphics_note.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"]))
         self._graphics_note.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         gfx_lay.addWidget(self._graphics_note)
         gfx_lay.addStretch()
@@ -379,14 +381,14 @@ class SettingsOverlay(_OverlayBase):
                     QPushButton {{
                         background: {C.PRI_GHO}; color: {C.PRI};
                         border: none; border-bottom: 2px solid {C.PRI};
-                        border-radius: 3px; padding: 0 8px;
+                        border-radius: {TOKENS.radii['legacy_3']}px; padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_8']}px;
                     }}
                 """)
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: transparent; color: {C.WHITE_DIM};
-                        border: 1px solid {qss_rgba(C.BORDER, 68)}; border-radius: 3px; padding: 0 8px;
+                        border: 1px solid {qss_rgba(C.BORDER, 68)}; border-radius: {TOKENS.radii['legacy_3']}px; padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_8']}px;
                     }}
                     QPushButton:hover {{ color: {C.PRI}; background: {C.PRI_GHO};
                                          border: 1px solid {C.BORDER_B}; }}
@@ -426,7 +428,7 @@ class SettingsOverlay(_OverlayBase):
     def refresh_theme(self):
         self.setStyleSheet(f"""
             SettingsOverlay {{
-                background: {C.BG}; border: 1px solid {C.BORDER_B}; border-radius: 8px;
+                background: {C.BG}; border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_8']}px;
             }}
         """)
         for label, color_role in self._theme_labels:
@@ -436,8 +438,8 @@ class SettingsOverlay(_OverlayBase):
         self._s_name_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.WHITE};
-                border: 1px solid {C.BORDER_B}; border-radius: 4px;
-                padding: 4px 10px 4px 28px;
+                border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_4']}px;
+                padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_28']}px;
             }}
             QLineEdit:focus {{ border-color: {C.PRI}; background: {C.DARK}; }}
         """)
@@ -454,14 +456,14 @@ class SettingsOverlay(_OverlayBase):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.PRI}; color: {C.BG};
-                        border: none; border-radius: 4px;
+                        border: none; border-radius: {TOKENS.radii['legacy_4']}px;
                     }}
                 """)
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.DARK}; color: {C.TEXT_MED};
-                        border: 1px solid {C.BORDER}; border-radius: 4px;
+                        border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_4']}px;
                     }}
                     QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
                 """)

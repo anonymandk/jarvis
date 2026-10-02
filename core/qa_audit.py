@@ -91,14 +91,76 @@ def repository_findings(root: Path) -> list[Finding]:
             "Affected files: " + ", ".join(deprecated_sdk_files),
         ))
 
-    ui_source = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in ui_sources)
-    hardcoded = len(re.findall(r"#[0-9A-Fa-f]{6,8}", ui_source))
-    if hardcoded >= 50:
+    token_path = ui_path / "theme" / "tokens.py"
+    color_literals = []
+    for path in ui_sources:
+        if path == token_path:
+            continue
+        for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if re.search(r"#[0-9A-Fa-f]{3,8}\b", line):
+                color_literals.append(f"{path.relative_to(root)}:{line_number}")
+    if color_literals:
         findings.append(Finding(
-            "P2", "UI contains extensive hard-coded color values", "Theming",
-            "Some controls may not update consistently when themes change.",
-            "Switch through all themes and inspect existing overlays and detached panels.",
-            "Runtime colors come from theme tokens or are explicitly invariant.",
-            f"Found {hardcoded} hexadecimal color literals in the ui package.",
+            "P1", "UI colors must come from the central token module", "Theming",
+            "A color literal outside ui/theme/tokens.py can drift from the shared palette.",
+            "Replace the literal with a semantic token and rerun the package audit.",
+            "No hexadecimal color literals exist outside ui/theme/tokens.py.",
+            f"Found {len(color_literals)} literals at: {', '.join(color_literals)}",
+        ))
+
+    rgba_literals = []
+    ui_imports = []
+    for path in ui_sources:
+        if path == token_path:
+            continue
+        source = path.read_text(encoding="utf-8", errors="replace")
+        relative = str(path.relative_to(root))
+        for line_number, line in enumerate(source.splitlines(), 1):
+            if re.search(r"\brgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+", line, re.IGNORECASE):
+                rgba_literals.append(f"{relative}:{line_number}")
+        try:
+            tree = ast.parse(source, filename=relative)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            modules = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                modules = [node.module or ""]
+            elif isinstance(node, ast.Call) and node.args:
+                function = node.func
+                dynamic_import = (
+                    isinstance(function, ast.Name) and function.id == "__import__"
+                ) or (
+                    isinstance(function, ast.Attribute)
+                    and function.attr == "import_module"
+                    and isinstance(function.value, ast.Name)
+                    and function.value.id == "importlib"
+                )
+                if dynamic_import and isinstance(node.args[0], ast.Constant):
+                    modules = [str(node.args[0].value)]
+            if any(
+                module == "actions" or module.startswith("actions.")
+                or module == "google" or module.startswith("google.")
+                for module in modules
+            ):
+                ui_imports.append(f"{relative}:{getattr(node, 'lineno', 1)}")
+
+    if rgba_literals:
+        findings.append(Finding(
+            "P1", "UI alpha colors must come from central opacity tokens", "Theming",
+            "Numeric RGB/RGBA literals outside the token module can drift from the shared palette.",
+            "Use a semantic palette color with qss_rgba and a named opacity token.",
+            "No numeric RGB/RGBA literals exist outside ui/theme/tokens.py.",
+            f"Found {len(rgba_literals)} literals at: {', '.join(rgba_literals)}",
+        ))
+    if ui_imports:
+        findings.append(Finding(
+            "P1", "UI modules cross the engine or vendor dependency boundary", "Architecture",
+            "UI modules importing action or Gemini packages couple presentation code to runtime services.",
+            "Move shared data to a neutral module or inject application-owned services.",
+            "No UI module imports actions or google packages.",
+            "Imports at: " + ", ".join(ui_imports),
         ))
     return findings

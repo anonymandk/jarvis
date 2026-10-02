@@ -13,14 +13,14 @@ class LogWidget(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setFont(QFont("Courier New", 9))
+        self.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"]))
         self.setStyleSheet(f"""
             QTextEdit {{
                 background: {C.PANEL};
                 color: {C.TEXT};
                 border: 1px solid {C.BORDER};
-                border-radius: 4px;
-                padding: 6px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
+                padding: {TOKENS.spacing['legacy_6']}px;
                 selection-background-color: {C.PRI_GHO};
             }}
             QScrollBar:vertical {{
@@ -30,7 +30,7 @@ class LogWidget(QTextEdit):
             }}
             QScrollBar::handle:vertical {{
                 background: {C.BORDER_B};
-                border-radius: 4px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
                 min-height: 20px;
             }}
         """)

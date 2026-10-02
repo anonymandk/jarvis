@@ -14,6 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 import ui
+from core import intro_tts
 
 
 class _NoSecrets:
@@ -729,14 +730,14 @@ class UIRegressionTests(unittest.TestCase):
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=response)
         with (
-            patch("google.genai.Client", return_value=client),
+            patch("core.intro_tts.genai.Client", return_value=client),
         ):
-            pcm = asyncio.run(ui._render_intro_with_live(
+            pcm = asyncio.run(intro_tts.render_intro_with_live(
                 "JARVIS online.", "charon", "test-key"
             ))
         self.assertEqual(pcm, b"\x01\x00" * 64)
         request = client.aio.models.generate_content.await_args.kwargs
-        self.assertEqual(request["model"], ui.INTRO_TTS_MODELS[0])
+        self.assertEqual(request["model"], intro_tts.MODELS[0])
         self.assertEqual(request["contents"], "JARVIS online.")
         config = request["config"]
         self.assertEqual(config.response_modalities, ["AUDIO"])
@@ -746,6 +747,34 @@ class UIRegressionTests(unittest.TestCase):
             "Charon",
         )
         client.close.assert_called_once()
+
+    def test_first_run_audio_renderer_is_host_injected(self):
+        calls = []
+
+        async def render_one(narration, voice_name, api_key):
+            calls.append(("one", narration, voice_name, api_key))
+            return b"\x01\x00"
+
+        async def render_segments(captions, voice_name, api_key):
+            calls.append(("segments", captions, voice_name, api_key))
+            return b"\x02\x00", [0, 2]
+
+        ui._configure_intro_tts_renderers(render_one, render_segments)
+        try:
+            self.assertEqual(
+                asyncio.run(ui._render_intro_with_live("hello", "kore", "secret")),
+                b"\x01\x00",
+            )
+            self.assertEqual(
+                asyncio.run(ui._render_intro_segments_with_live(("a",), "puck", "secret")),
+                (b"\x02\x00", [0, 2]),
+            )
+        finally:
+            ui._configure_intro_tts_renderers(None, None)
+        self.assertEqual(calls, [
+            ("one", "hello", "kore", "secret"),
+            ("segments", ("a",), "puck", "secret"),
+        ])
 
     def test_segmented_intro_renderer_returns_exact_pcm_boundaries(self):
         responses = [
@@ -769,9 +798,9 @@ class UIRegressionTests(unittest.TestCase):
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(side_effect=responses)
         with (
-            patch("google.genai.Client", return_value=client),
+            patch("core.intro_tts.genai.Client", return_value=client),
         ):
-            pcm, boundaries = asyncio.run(ui._render_intro_segments_with_live(
+            pcm, boundaries = asyncio.run(intro_tts.render_intro_segments_with_live(
                 ("First chapter.", "Second chapter."), "charon", "test-key"
             ))
         self.assertEqual(boundaries, [0, 48, 144])
@@ -790,16 +819,14 @@ class UIRegressionTests(unittest.TestCase):
         empty_response = SimpleNamespace(candidates=[])
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=empty_response)
-        with (
-            patch("google.genai.Client", return_value=client),
-        ):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "returned no audio"):
-                asyncio.run(ui._render_intro_segments_with_live(
+                asyncio.run(intro_tts.render_intro_segments_with_live(
                     ("Good evening.",), "charon", "test-key"
                 ))
         self.assertEqual(
             client.aio.models.generate_content.await_count,
-            ui.INTRO_CHAPTER_RENDER_ATTEMPTS * len(ui.INTRO_TTS_MODELS),
+            intro_tts.RENDER_ATTEMPTS * len(intro_tts.MODELS),
         )
 
     def test_segmented_tts_stops_immediately_on_quota_error(self):
@@ -807,9 +834,9 @@ class UIRegressionTests(unittest.TestCase):
         client.aio.models.generate_content = AsyncMock(
             side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
         )
-        with patch("google.genai.Client", return_value=client):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "429"):
-                asyncio.run(ui._render_intro_segments_with_live(
+                asyncio.run(intro_tts.render_intro_segments_with_live(
                     ("Good evening.",), "charon", "test-key"
                 ))
         self.assertEqual(client.aio.models.generate_content.await_count, 1)
@@ -819,9 +846,9 @@ class UIRegressionTests(unittest.TestCase):
         client.aio.models.generate_content = AsyncMock(
             side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
         )
-        with patch("google.genai.Client", return_value=client):
+        with patch("core.intro_tts.genai.Client", return_value=client):
             with self.assertRaisesRegex(RuntimeError, "429"):
-                asyncio.run(ui._render_intro_with_live(
+                asyncio.run(intro_tts.render_intro_with_live(
                     "Good evening.", "kore", "test-key"
                 ))
         self.assertEqual(client.aio.models.generate_content.await_count, 1)
@@ -1047,8 +1074,9 @@ class UIRegressionTests(unittest.TestCase):
         self.assertIn("if spotlight.isEmpty():", source)
 
     def test_long_intro_renderer_has_extended_timeout(self):
-        source = inspect.getsource(ui._request_intro_tts)
-        self.assertIn("timeout=90.0", source)
+        self.assertEqual(intro_tts.REQUEST_TIMEOUT_SECONDS, 90.0)
+        source = inspect.getsource(intro_tts._request_intro_tts)
+        self.assertIn("timeout=REQUEST_TIMEOUT_SECONDS", source)
 
     def test_tour_and_greeting_use_distinct_caches(self):
         narration = "JARVIS online."

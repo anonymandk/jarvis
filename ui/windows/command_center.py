@@ -90,10 +90,12 @@ class _MainWindowCommandMixin:
         effect.setOpacity(0.0)
         widget.setGraphicsEffect(effect)
         animation = QPropertyAnimation(effect, b"opacity", self)
-        animation.setDuration(230)
+        animation.setDuration(TOKENS.motion_ms["legacy_230"])
         animation.setStartValue(0.0)
         animation.setEndValue(1.0)
-        animation.setEasingCurve(QEasingCurve.Type.OutQuart)
+        animation.setEasingCurve(
+            getattr(QEasingCurve.Type, TOKENS.motion_easing["standard"])
+        )
         self._command_reveal_animations = getattr(self, "_command_reveal_animations", [])
         self._command_reveal_animations.append(animation)
 

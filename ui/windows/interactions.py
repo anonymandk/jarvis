@@ -143,8 +143,8 @@ class _MainWindowInteractionMixin:
                     background: {C.RED_BG};
                     color: {C.MUTED_C};
                     border: 1px solid {C.RED};
-                    border-radius: 5px;
-                    padding: 0 12px;
+                    border-radius: {TOKENS.radii['legacy_5']}px;
+                    padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_12']}px;
                 }}
                 QPushButton:hover {{
                     background: {C.DARK2};
@@ -159,8 +159,8 @@ class _MainWindowInteractionMixin:
                     background: {C.GREEN_BG};
                     color: {C.GREEN};
                     border: 1px solid {C.GREEN_D};
-                    border-radius: 5px;
-                    padding: 0 12px;
+                    border-radius: {TOKENS.radii['legacy_5']}px;
+                    padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_12']}px;
                 }}
                 QPushButton:hover {{
                     background: {C.DARK2};
@@ -224,7 +224,7 @@ class _MainWindowInteractionMixin:
                 "LISTENING": C.GREEN,
             }.get(state, C.TEXT_DIM)
             self._rail_mode_lbl.setStyleSheet(
-                f"color: {rail_color}; background: transparent; letter-spacing: 1px;"
+                f"color: {rail_color}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
             if hasattr(self, "_rail_status_dot"):
                 self._rail_status_dot.setStyleSheet(
@@ -240,7 +240,7 @@ class _MainWindowInteractionMixin:
                 "LISTENING": C.TEXT_MED,
             }.get(state, C.TEXT_MED)
             self._header_mode_lbl.setStyleSheet(
-                f"color: {state_color}; background: transparent; letter-spacing: 1px;"
+                f"color: {state_color}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
         # Sync AI canvas state
         if hasattr(self, "_ai_canvas"):

@@ -167,7 +167,7 @@ class HudCanvasPaintMixin:
                 p.drawEllipse(hp, 2.5, 2.5)
 
             # Coordinate labels at two vertices
-            p.setFont(QFont("Courier New", 6))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"]))
             p.setPen(QPen(qcol(C.PRI,max(0, hex_a - 20)), 0.8))
             p.drawText(QPointF(hex_pts[0].x() + 10, hex_pts[0].y() - 4), "037.4\u00b0")
             p.drawText(QPointF(hex_pts[3].x() - 55, hex_pts[3].y() + 14), "217.8\u00b0")
@@ -186,7 +186,7 @@ class HudCanvasPaintMixin:
             p.drawLine(QPointF(cx, cy + ch_gap), QPointF(cx, cy + ch_len))
 
             # Degree markers around perimeter
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             for deg in range(0, 360, 45):
                 rad = math.radians(deg)
                 mx = cx + math.cos(rad) * ret_r
@@ -429,7 +429,7 @@ class HudCanvasPaintMixin:
         # ═══ LAYER 11b: Micro-details — telemetry labels ══════════════════
         detail_a = max(0, int(self._brightness * 18))
         if detail_a > 2:
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             # Scattered labels around the orb
             details = [
                 (0.58, 0.25, "NODE-{:02d}  {:.0f}%".format(
@@ -574,7 +574,7 @@ class HudCanvasPaintMixin:
                 p.drawLine(QPointF(bx, by + dy * ti), QPointF(bx + dx * 3, by + dy * ti))
 
             # Coordinate readout inside corner
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             _cx_v = int(bx + (cx - bx) * 0.08)
             _cy_v = int(by + (cy - by) * 0.08)
             _co_a = max(0, int(self._brightness * 80))
@@ -614,7 +614,7 @@ class HudCanvasPaintMixin:
                 sc = qcol(C.ENERGY, 150)
                 p.fillRect(QRectF(sx, sw_y - sh / 2, sw_bw - 1, sh), sc)
 
-        p.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
         _tc = QColor(col); _tc.setAlpha(20)
         for _ox, _oy in [(-2,0),(2,0),(0,-2),(0,2),(-1,-1),(1,1),(-1,1),(1,-1)]:
             p.setPen(QPen(_tc, 1))
@@ -664,7 +664,7 @@ class HudCanvasPaintMixin:
             p.drawLine(QPointF(spark_x, spark_cy - spark_h / 2),
                        QPointF(spark_x, spark_cy + spark_h / 2))
             # Sparkline points
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             p.setPen(QPen(qcol(C.PRI,max(0, telem_a - 5)), 0.5))
             p.drawText(QPointF(spark_x - 20, spark_cy - spark_h / 2 - 6), "PWR")
             for si in range(20):
@@ -681,7 +681,7 @@ class HudCanvasPaintMixin:
             p.setPen(QPen(qcol(C.PRI,telem_a), 0.6))
             p.drawLine(QPointF(spark_x2, spark_cy - spark_h / 2),
                        QPointF(spark_x2, spark_cy + spark_h / 2))
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             p.setPen(QPen(qcol(C.PRI,max(0, telem_a - 5)), 0.5))
             p.drawText(QPointF(spark_x2 - 12, spark_cy - spark_h / 2 - 6), "NET")
             for si in range(20):
@@ -693,7 +693,7 @@ class HudCanvasPaintMixin:
                 p.drawLine(QPointF(spark_x2 - 2, sy), QPointF(spark_x2 + 2, sy))
 
             # Left telemetry labels
-            p.setFont(QFont("Courier New", 5))
+            p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_5"]))
             labels_left = [
                 (-0.72, 0.05, "SYS {:.1f}%".format(94.2 + 2 * math.sin(self._tick * 0.01))),
                 (-0.68, 0.18, "CPU  {:.0f}MHz".format(3200 + 200 * math.sin(self._tick * 0.008))),

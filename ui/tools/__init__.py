@@ -33,29 +33,29 @@ class ResearchProgressWidget(QWidget):
         self._hide_sig.connect(self.hide)
 
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(48, 2, 48, 6)
-        outer.setSpacing(0)
+        outer.setContentsMargins(TOKENS.spacing["legacy_48"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_48"], TOKENS.spacing["legacy_6"])
+        outer.setSpacing(TOKENS.spacing["legacy_0"])
 
         self._shell = QFrame()
         self._shell.setObjectName("researchProgressShell")
         self._shell.setMaximumWidth(820)
         shell_lay = QVBoxLayout(self._shell)
-        shell_lay.setContentsMargins(16, 10, 16, 10)
-        shell_lay.setSpacing(6)
+        shell_lay.setContentsMargins(TOKENS.spacing["legacy_16"], TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_16"], TOKENS.spacing["legacy_10"])
+        shell_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         header = QHBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(TOKENS.spacing["legacy_8"])
         self._title = QLabel(self._task_title)
-        self._title.setFont(QFont(UI_FONT, 9, QFont.Weight.DemiBold))
+        self._title.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.DemiBold))
         header.addWidget(self._title)
         header.addStretch()
         self._status = QLabel("RUNNING IN THE BACKGROUND  ·  0%")
-        self._status.setFont(QFont(TECH_FONT, 8, QFont.Weight.Medium))
+        self._status.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Medium))
         header.addWidget(self._status)
         shell_lay.addLayout(header)
 
         self._question_lbl = QLabel("Preparing research brief")
-        self._question_lbl.setFont(QFont(UI_FONT, 10, QFont.Weight.Medium))
+        self._question_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Medium))
         self._question_lbl.setWordWrap(False)
         shell_lay.addWidget(self._question_lbl)
 
@@ -68,7 +68,7 @@ class ResearchProgressWidget(QWidget):
         shell_lay.addWidget(self._bar)
 
         self._phase = QLabel("Queued")
-        self._phase.setFont(QFont(UI_FONT, 8, QFont.Weight.Normal))
+        self._phase.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Normal))
         shell_lay.addWidget(self._phase)
 
         outer.addStretch()
@@ -152,10 +152,12 @@ class ResearchProgressWidget(QWidget):
             effect = QGraphicsOpacityEffect(self)
             self.setGraphicsEffect(effect)
             self._fade_animation = QPropertyAnimation(effect, b"opacity", self)
-            self._fade_animation.setDuration(180)
+            self._fade_animation.setDuration(TOKENS.motion_ms["legacy_180"])
             self._fade_animation.setStartValue(0.0)
             self._fade_animation.setEndValue(1.0)
-            self._fade_animation.setEasingCurve(QEasingCurve.Type.OutQuart)
+            self._fade_animation.setEasingCurve(
+                getattr(QEasingCurve.Type, TOKENS.motion_easing["standard"])
+            )
             self._fade_animation.start()
 
         if self._state in {"completed", "failed", "cancelled"}:
@@ -174,16 +176,16 @@ class ResearchProgressWidget(QWidget):
         }.get(self._state, C.PRI)
         self._shell.setStyleSheet(f"""
             QFrame#researchProgressShell {{
-                background: {C.PANEL}; border: 1px solid {C.BORDER_B}; border-radius: 7px;
+                background: {C.PANEL}; border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_7']}px;
             }}
         """)
-        self._title.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent; letter-spacing: 1px;")
+        self._title.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;")
         self._status.setStyleSheet(f"color: {state_color}; background: transparent;")
         self._question_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
         self._phase.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         self._bar.setStyleSheet(f"""
-            QProgressBar {{ background: {C.DARK2}; border: none; border-radius: 2px; }}
-            QProgressBar::chunk {{ background: {state_color}; border-radius: 2px; }}
+            QProgressBar {{ background: {C.DARK2}; border: none; border-radius: {TOKENS.radii['legacy_2']}px; }}
+            QProgressBar::chunk {{ background: {state_color}; border-radius: {TOKENS.radii['legacy_2']}px; }}
         """)
 
 
@@ -200,29 +202,29 @@ class ToolProgressWidget(QWidget):
             QWidget {{
                 background: {qss_rgba(C.PURPLE, 24)};
                 border: 1px solid {qss_rgba(C.PURPLE, 68)};
-                border-radius: 4px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
             }}
         """)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 2, 10, 2)
-        lay.setSpacing(6)
+        lay.setContentsMargins(TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_2"])
+        lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         self._spinner_chars = ["◐", "◓", "◑", "◒"]
         self._spinner_idx = 0
 
         self._spinner = QLabel("◐")
-        self._spinner.setFont(QFont("Courier New", 10))
+        self._spinner.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_10"]))
         self._spinner.setStyleSheet(f"color: {C.PURPLE}; background: transparent; border: none;")
         lay.addWidget(self._spinner)
 
         self._tool_lbl = QLabel("EXECUTING...")
-        self._tool_lbl.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._tool_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Bold))
         self._tool_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent; border: none;")
         lay.addWidget(self._tool_lbl, stretch=1)
 
         self._time_lbl = QLabel("0s")
-        self._time_lbl.setFont(QFont("Courier New", 7))
+        self._time_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         self._time_lbl.setStyleSheet(f"color: {C.PURPLE}; background: transparent; border: none;")
         lay.addWidget(self._time_lbl)
 
@@ -277,14 +279,14 @@ class TaskQueueWidget(QWidget):
         self.setStyleSheet("background: transparent;")
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(3)
+        lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        lay.setSpacing(TOKENS.spacing["legacy_3"])
 
         self._container = QWidget()
         self._container.setStyleSheet("background: transparent;")
         self._c_lay = QVBoxLayout(self._container)
-        self._c_lay.setContentsMargins(0, 0, 0, 0)
-        self._c_lay.setSpacing(3)
+        self._c_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        self._c_lay.setSpacing(TOKENS.spacing["legacy_3"])
         self._c_lay.addStretch()
 
         scroll = QScrollArea()
@@ -297,14 +299,14 @@ class TaskQueueWidget(QWidget):
                 background: {C.BG}; width: 6px; border: none;
             }}
             QScrollBar::handle:vertical {{
-                background: {C.BORDER_B}; border-radius: 3px; min-height: 16px;
+                background: {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_3']}px; min-height: 16px;
             }}
         """)
         lay.addWidget(scroll)
         self._empty_state = QLabel("No tasks yet. New activity will appear here.", self)
         self._empty_state.setWordWrap(True)
         self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: 10px;")
+        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: {TOKENS.spacing['legacy_10']}px;")
         lay.addWidget(self._empty_state)
 
     def push_task(self, name: str, status: str):
@@ -346,26 +348,26 @@ class TaskQueueWidget(QWidget):
                     background: {C.CARD};
                     border: 1px solid {C.BORDER};
                     border-left: 2px solid {col};
-                    border-radius: 4px;
+                    border-radius: {TOKENS.radii['legacy_4']}px;
                 }}
             """)
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(6, 3, 6, 3)
-            rl.setSpacing(6)
+            rl.setContentsMargins(TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_3"], TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_3"])
+            rl.setSpacing(TOKENS.spacing["legacy_6"])
 
             sym_lbl = QLabel(sym)
-            sym_lbl.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+            sym_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Bold))
             sym_lbl.setStyleSheet(f"color: {col}; background: transparent; border: none;")
             sym_lbl.setFixedWidth(12)
             rl.addWidget(sym_lbl)
 
             name_lbl = QLabel(task["name"][:28])
-            name_lbl.setFont(QFont("Courier New", 8))
+            name_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
             name_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent; border: none;")
             rl.addWidget(name_lbl, stretch=1)
 
             ts_lbl = QLabel(task["ts"])
-            ts_lbl.setFont(QFont("Courier New", 7))
+            ts_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
             ts_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; border: none;")
             rl.addWidget(ts_lbl)
 
@@ -384,14 +386,14 @@ class ToolLogWidget(QWidget):
         self.setStyleSheet("background: transparent;")
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(3)
+        lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        lay.setSpacing(TOKENS.spacing["legacy_3"])
 
         self._container = QWidget()
         self._container.setStyleSheet("background: transparent;")
         self._c_lay = QVBoxLayout(self._container)
-        self._c_lay.setContentsMargins(0, 0, 0, 0)
-        self._c_lay.setSpacing(3)
+        self._c_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        self._c_lay.setSpacing(TOKENS.spacing["legacy_3"])
         self._c_lay.addStretch()
 
         scroll = QScrollArea()
@@ -404,14 +406,14 @@ class ToolLogWidget(QWidget):
                 background: {C.BG}; width: 6px; border: none;
             }}
             QScrollBar::handle:vertical {{
-                background: {C.BORDER_B}; border-radius: 3px; min-height: 16px;
+                background: {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_3']}px; min-height: 16px;
             }}
         """)
         lay.addWidget(scroll)
         self._empty_state = QLabel("No tool activity yet. Executed actions will appear here.", self)
         self._empty_state.setWordWrap(True)
         self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: 10px;")
+        self._empty_state.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; padding: {TOKENS.spacing['legacy_10']}px;")
         lay.addWidget(self._empty_state)
 
     def push(self, text: str):
@@ -450,21 +452,21 @@ class ToolLogWidget(QWidget):
                     background: {C.CARD};
                     border: 1px solid {C.BORDER};
                     border-left: 2px solid {col};
-                    border-radius: 4px;
+                    border-radius: {TOKENS.radii['legacy_4']}px;
                 }}
             """)
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(6, 3, 6, 3)
-            rl.setSpacing(6)
+            rl.setContentsMargins(TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_3"], TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_3"])
+            rl.setSpacing(TOKENS.spacing["legacy_6"])
 
             ts_lbl = QLabel(entry["ts"])
-            ts_lbl.setFont(QFont("Courier New", 7))
+            ts_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
             ts_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; border: none;")
             ts_lbl.setFixedWidth(44)
             rl.addWidget(ts_lbl)
 
             msg_lbl = QLabel(txt[:40])
-            msg_lbl.setFont(QFont("Courier New", 8))
+            msg_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
             msg_lbl.setStyleSheet(f"color: {col}; background: transparent; border: none;")
             rl.addWidget(msg_lbl, stretch=1)
 
@@ -482,8 +484,8 @@ class MissionControlPanel(QWidget):
         self.setStyleSheet("background: transparent;")
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        outer.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        outer.setSpacing(TOKENS.spacing["legacy_0"])
 
         # ── Tab bar ──────────────────────────────────────────────────────────
         tab_bar = QWidget()
@@ -496,8 +498,8 @@ class MissionControlPanel(QWidget):
             }}
         """)
         tb_lay = QHBoxLayout(tab_bar)
-        tb_lay.setContentsMargins(4, 0, 4, 0)
-        tb_lay.setSpacing(2)
+        tb_lay.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_0"])
+        tb_lay.setSpacing(TOKENS.spacing["legacy_2"])
 
         self._tabs: list[QPushButton] = []
         self._tab_names = ["COMMS", "TASKS", "ASSETS", "TOOLS"]
@@ -506,7 +508,7 @@ class MissionControlPanel(QWidget):
         for i, name in enumerate(self._tab_names):
             btn = QPushButton(name)
             btn.setFixedHeight(28)
-            btn.setFont(QFont(DISPLAY_FONT, 8, QFont.Weight.DemiBold))
+            btn.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, idx=i: self._switch_tab(idx))
             self._tabs.append(btn)
@@ -564,8 +566,8 @@ class MissionControlPanel(QWidget):
                         color: {C.PRI};
                         border: none;
                         border-bottom: 2px solid {C.PRI};
-                        border-radius: 3px;
-                        padding: 0 6px;
+                        border-radius: {TOKENS.radii['legacy_3']}px;
+                        padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_6']}px;
                     }}
                 """)
             else:
@@ -574,8 +576,8 @@ class MissionControlPanel(QWidget):
                         background: transparent;
                         color: {C.TEXT_DIM};
                         border: none;
-                        border-radius: 3px;
-                        padding: 0 6px;
+                        border-radius: {TOKENS.radii['legacy_3']}px;
+                        padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_6']}px;
                     }}
                     QPushButton:hover {{
                         color: {C.TEXT_MED};
@@ -586,7 +588,7 @@ class MissionControlPanel(QWidget):
     def set_assets_widget(self, w: QWidget):
         """Called from _build_right_panel to inject the FileDropZone page."""
         lay = QVBoxLayout(self._assets_page)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(6)
+        lay.setContentsMargins(TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"])
+        lay.setSpacing(TOKENS.spacing["legacy_6"])
         lay.addWidget(w)
         lay.addStretch()

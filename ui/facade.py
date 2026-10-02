@@ -18,7 +18,15 @@ class _RootShim:
 
 class JarvisUI:
 
-    def __init__(self, face_path: str, size=None):
+    def __init__(
+        self,
+        face_path: str,
+        size=None,
+        *,
+        intro_tts_renderer=None,
+        segmented_intro_tts_renderer=None,
+    ):
+        _configure_intro_tts_renderers(intro_tts_renderer, segmented_intro_tts_renderer)
         self._app = QApplication.instance() or QApplication(sys.argv)
         self._app.setStyle("Fusion")
 

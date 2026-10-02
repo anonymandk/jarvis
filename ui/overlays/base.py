@@ -28,18 +28,18 @@ class _OverlayBase(QWidget):
 
         btn = QPushButton("✕", self)
         btn.setFixedSize(22, 22)
-        btn.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+        btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
                 color: {C.TEXT_DIM};
                 border: none;
-                border-radius: 3px;
+                border-radius: {TOKENS.radii['legacy_3']}px;
             }}
             QPushButton:hover {{
                 color: {C.RED};
-                background: rgba(255,51,85,15);
+                background: {qss_rgba(C.MUTED_C, TOKENS.opacity['close_button_tint'])};
             }}
         """)
         btn.clicked.connect(self._close_cb)

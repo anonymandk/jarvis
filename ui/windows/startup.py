@@ -125,7 +125,7 @@ class _MainWindowStartupMixin:
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setSpacing(0)
+        root.setSpacing(TOKENS.spacing["legacy_0"])
         self._header = self._build_header()
         root.addWidget(self._header)
         self._style_header()
@@ -139,8 +139,8 @@ class _MainWindowStartupMixin:
         self._ai_core_wrap.setObjectName("aiCore")
         self._ai_core_wrap.setStyleSheet(f"background: {C.BG};")
         ai_core_lay = QVBoxLayout(self._ai_core_wrap)
-        ai_core_lay.setContentsMargins(0, 0, 0, 0)
-        ai_core_lay.setSpacing(6)
+        ai_core_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        ai_core_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         # Create configuration objects
         hud_config = HudConfig()
@@ -178,8 +178,8 @@ class _MainWindowStartupMixin:
         middle_section = QWidget()
         middle_section.setStyleSheet(f"background: {C.BG};")
         middle_layout = QHBoxLayout(middle_section)
-        middle_layout.setContentsMargins(0, 0, 0, 0)
-        middle_layout.setSpacing(0)
+        middle_layout.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        middle_layout.setSpacing(TOKENS.spacing["legacy_0"])
         middle_layout.addWidget(self._left_panel)
         middle_layout.addWidget(self._ai_core_wrap, stretch=1)
         middle_layout.addWidget(self._right_panel)
@@ -203,8 +203,8 @@ class _MainWindowStartupMixin:
         self._middle_section = middle_section2
         middle_section2.setStyleSheet(f"background: {C.BG};")
         middle_layout2 = QHBoxLayout(middle_section2)
-        middle_layout2.setContentsMargins(0, 0, 0, 0)
-        middle_layout2.setSpacing(0)
+        middle_layout2.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        middle_layout2.setSpacing(TOKENS.spacing["legacy_0"])
         middle_layout2.addWidget(self._splitter)
 
         # Add middle section to main layout

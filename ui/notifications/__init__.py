@@ -18,7 +18,7 @@ class ToastNotification(QWidget):
         colors = {
             "info":    (C.PRI,    C.PRI_GHO),
             "success": (C.GREEN,  C.GREEN_BG),
-            "warning": (C.ACC,    C.ACC2),
+            "warning": (C.BG,     C.ACC2),
             "error":   (C.RED,    C.RED_BG),
         }
         fg, bg = colors.get(toast_type, colors["info"])
@@ -27,31 +27,33 @@ class ToastNotification(QWidget):
             ToastNotification {{
                 background: {bg};
                 border: 1px solid {fg}88;
-                border-radius: 6px;
+                border-radius: {TOKENS.radii['legacy_6']}px;
             }}
         """)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(12, 4, 12, 4)
-        lay.setSpacing(8)
+        lay.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_4"])
+        lay.setSpacing(TOKENS.spacing["legacy_8"])
 
         symbols = {"info": "◈", "success": "✓", "warning": "⚠", "error": "✗"}
         sym = QLabel(symbols.get(toast_type, "◈"))
-        sym.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        sym.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Bold))
         sym.setStyleSheet(f"color: {fg}; background: transparent;")
         lay.addWidget(sym)
 
         msg = QLabel(message)
-        msg.setFont(QFont("Courier New", 8))
-        msg.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
+        msg.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
+        message_color = C.BG if toast_type == "warning" else C.WHITE
+        msg.setStyleSheet(f"color: {message_color}; background: transparent;")
         lay.addWidget(msg, stretch=1)
 
         close = QPushButton("✕")
         close.setFixedSize(18, 18)
-        close.setFont(QFont("Courier New", 8))
+        close.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
         close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_color = C.BG if toast_type == "warning" else C.TEXT_DIM
         close.setStyleSheet(f"""
-            QPushButton {{ background: transparent; color: {C.TEXT_DIM}; border: none; }}
+            QPushButton {{ background: transparent; color: {close_color}; border: none; }}
             QPushButton:hover {{ color: {fg}; }}
         """)
         close.clicked.connect(self._dismiss)
@@ -188,14 +190,14 @@ class BasePopup(QWidget):
             BasePopup {{
                 background: {bg};
                 border: 1px solid {border};
-                border-radius: 8px;
+                border-radius: {TOKENS.radii['legacy_8']}px;
             }}
         """)
 
         # Layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_12"], TOKENS.spacing["legacy_8"])
+        layout.setSpacing(TOKENS.spacing["legacy_4"])
 
         # Icon/symbol
         symbols = {
@@ -206,13 +208,13 @@ class BasePopup(QWidget):
             PopupType.CRITICAL: "‼",
         }
         symbol = QLabel(symbols.get(popup_type, "◈"))
-        symbol.setFont(QFont("Courier New", 14, QFont.Weight.Bold))
+        symbol.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_14"], QFont.Weight.Bold))
         symbol.setStyleSheet(f"color: {text_color}; background: transparent;")
         layout.addWidget(symbol, alignment=Qt.AlignmentFlag.AlignLeft)
 
         # Message
         msg_label = QLabel(message)
-        msg_label.setFont(QFont("Courier New", 9))
+        msg_label.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"]))
         msg_label.setStyleSheet(f"color: {text_color}; background: transparent;")
         msg_label.setWordWrap(True)
         layout.addWidget(msg_label, stretch=1)
@@ -221,7 +223,7 @@ class BasePopup(QWidget):
         if popup_type != PopupType.CRITICAL:
             close_btn = QPushButton("✕")
             close_btn.setFixedSize(20, 20)
-            close_btn.setFont(QFont("Courier New", 8))
+            close_btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
             close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             close_btn.setStyleSheet("""
                 QPushButton {
@@ -254,10 +256,12 @@ class BasePopup(QWidget):
         try:
             if self._opacity_effect:
                 anim = QPropertyAnimation(self._opacity_effect, b"opacity")
-                anim.setDuration(300)
+                anim.setDuration(TOKENS.motion_ms["legacy_300"])
                 anim.setStartValue(self.config.opacity)
                 anim.setEndValue(0.0)
-                anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+                anim.setEasingCurve(
+                    getattr(QEasingCurve.Type, TOKENS.motion_easing["emphasis"])
+                )
                 anim.finished.connect(self.hide)
                 anim.start()
 

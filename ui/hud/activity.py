@@ -15,14 +15,14 @@ class AgentGridWidget(QWidget):
 
     # ── Per-agent accent colors (points 4 & 9) ──────────────────────────────
     _ACCENT = {
-        "CORE":       "#00E5FF",   # brightest cyan  (special)
-        "RESEARCH":   "#00E5FF",   # cyan
-        "SECURITY":   "#1E90FF",   # blue
-        "AUTOMATION": "#FFD700",   # gold
-        "MEMORY":     "#BF7FFF",   # purple
-        "VISION":     "#00FF7F",   # green
-        "DEV":        "#E0E0E0",   # white
-        "SYSTEM":     "#00CED1",   # teal
+        "CORE":       C.ENERGY,   # brightest cyan  (special)
+        "RESEARCH":   C.ENERGY,   # cyan
+        "SECURITY":   C.RED,   # blue
+        "AUTOMATION": C.ACC,   # gold
+        "MEMORY":     C.PURPLE,   # purple
+        "VISION":     C.GREEN,   # green
+        "DEV":        C.TEXT,   # white
+        "SYSTEM":     C.ENERGY,   # teal
     }
 
     _STATUS = {
@@ -115,41 +115,41 @@ class AgentGridWidget(QWidget):
             self._push_log()
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 4, 8, 4)
-        lay.setSpacing(0)
+        lay.setContentsMargins(TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_4"])
+        lay.setSpacing(TOKENS.spacing["legacy_0"])
 
         # ── Super-label (point 7): "COGNITIVE NETWORK" ──────────────────────
         super_lbl = QLabel("COGNITIVE NETWORK")
-        super_lbl.setFont(QFont("Courier New", 7))
+        super_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         super_lbl.setStyleSheet(
             f"color: {C.TEXT_DIM}; background: transparent; "
-            "letter-spacing: 3px; opacity: 0.28;"
+            f"letter-spacing: {TOKENS.letter_spacing['tracking']}px; opacity: 0.28;"
         )
         lay.addWidget(super_lbl)
 
         # ── Section header row (point 8: 13 px title) ───────────────────────
         hdr_row = QHBoxLayout()
         hdr = QLabel("AGENTS")
-        hdr.setFont(QFont("Courier New", 11, QFont.Weight.Bold))
-        hdr.setStyleSheet(f"color: {C.PRI}; background: transparent; letter-spacing: 3px;")
+        hdr.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_11"], QFont.Weight.Bold))
+        hdr.setStyleSheet(f"color: {C.PRI}; background: transparent; letter-spacing: {TOKENS.letter_spacing['tracking']}px;")
         hdr_row.addWidget(hdr)
         hdr_row.addStretch()
         self._active_count_lbl = QLabel(f"{len(self._AGENTS)} ACTIVE")
-        self._active_count_lbl.setFont(QFont("Courier New", 7))
+        self._active_count_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         self._active_count_lbl.setStyleSheet(
-            f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: 1px;"
+            f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
         )
         hdr_row.addWidget(self._active_count_lbl)
         lay.addLayout(hdr_row)
-        lay.addSpacing(4)
+        lay.addSpacing(TOKENS.spacing["legacy_4"])
 
         # ── Timeline entries (in scroll area so cards never get squashed) ────
         from PyQt6.QtWidgets import QScrollArea
         scroll_container = QWidget()
         scroll_container.setStyleSheet('background: transparent;')
         scroll_lay = QVBoxLayout(scroll_container)
-        scroll_lay.setContentsMargins(0, 0, 0, 0)
-        scroll_lay.setSpacing(0)
+        scroll_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        scroll_lay.setSpacing(TOKENS.spacing["legacy_0"])
         self._cards: list[dict] = []
         for i, name in enumerate(self._AGENTS):
             is_core = (name == 'CORE')
@@ -164,27 +164,27 @@ class AgentGridWidget(QWidget):
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setStyleSheet('QScrollArea { background: transparent; border: none; }')
         lay.addWidget(scroll_area, stretch=1)
-        lay.addSpacing(2)
+        lay.addSpacing(TOKENS.spacing["legacy_2"])
         # ── Activity Stream (point 12) ───────────────────────────────────────
         stream_super = QLabel("LIVE TELEMETRY")
-        stream_super.setFont(QFont("Courier New", 7))
+        stream_super.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         stream_super.setStyleSheet(
-            f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: 3px;"
+            f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: {TOKENS.letter_spacing['tracking']}px;"
         )
         lay.addWidget(stream_super)
 
         stream_hdr = QLabel("EVENT LOG")
-        stream_hdr.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+        stream_hdr.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
         stream_hdr.setStyleSheet(
-            f"color: {C.PRI}; background: transparent; letter-spacing: 2px;"
+            f"color: {C.PRI}; background: transparent; letter-spacing: {TOKENS.letter_spacing['wide']}px;"
         )
         lay.addWidget(stream_hdr)
-        lay.addSpacing(4)
+        lay.addSpacing(TOKENS.spacing["legacy_4"])
 
         self._log_widget = QLabel()
-        self._log_widget.setFont(QFont("Courier New", 7))
+        self._log_widget.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         self._log_widget.setStyleSheet(
-            f"color: {C.TEXT_MED}; background: transparent; line-height: 160%;"
+            f"color: {C.TEXT_MED}; background: transparent; line-height: {TOKENS.line_height_percent['comfortable']}%;"
         )
         self._log_widget.setWordWrap(False)
         lay.addWidget(self._log_widget)
@@ -218,24 +218,24 @@ class AgentGridWidget(QWidget):
         w.setStyleSheet("background: transparent;")
         w.setFixedHeight(height)
         wl = QVBoxLayout(w)
-        wl.setContentsMargins(4, 2, 4, 2)
-        wl.setSpacing(0)
-        wl.setSpacing(0)
+        wl.setContentsMargins(TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_2"])
+        wl.setSpacing(TOKENS.spacing["legacy_0"])
+        wl.setSpacing(TOKENS.spacing["legacy_0"])
 
         # ── Top row: icon · name · status · conf ────────────────────────────
         top = QHBoxLayout()
-        top.setSpacing(6)
+        top.setSpacing(TOKENS.spacing["legacy_6"])
 
         # Single icon only (no separate dot — eliminates double-dot)
         icon_lbl = QLabel(self._ICONS.get(name, "◈"))
-        icon_lbl.setFont(QFont("Courier New", 9))
+        icon_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"]))
         icon_lbl.setStyleSheet(f"color: {accent}; background: transparent;")
         icon_lbl.setFixedWidth(18)
         top.addWidget(icon_lbl)
 
         name_lbl = QLabel(name)
-        name_lbl.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
-        name_lbl.setStyleSheet(f"color: {accent}; background: transparent; letter-spacing: 1px;")
+        name_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.Bold))
+        name_lbl.setStyleSheet(f"color: {accent}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;")
         top.addWidget(name_lbl)
 
         top.addStretch()
@@ -245,13 +245,13 @@ class AgentGridWidget(QWidget):
                        "IDLE": "IDLE", "PROCESSING": "PROC", "ANALYZING": "ANLZ"}
         _st = _status_map.get(self._STATUS.get(name, "ONLINE"), "ONLN")
         status_lbl = QLabel(_st)
-        status_lbl.setFont(QFont("Courier New", 6))
-        status_lbl.setStyleSheet(f"color: {accent}; background: transparent; letter-spacing: 1px;")
+        status_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"]))
+        status_lbl.setStyleSheet(f"color: {accent}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;")
         status_lbl.setFixedWidth(32)
         top.addWidget(status_lbl)
 
         conf_lbl = QLabel("92%")
-        conf_lbl.setFont(QFont("Courier New", 6))
+        conf_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"]))
         conf_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
         conf_lbl.setFixedWidth(28)
         top.addWidget(conf_lbl)
@@ -260,7 +260,7 @@ class AgentGridWidget(QWidget):
 
         # ── Bottom row: faint │ + objective text aligned under name ────────
         bot = QHBoxLayout()
-        bot.setSpacing(4)
+        bot.setSpacing(TOKENS.spacing["legacy_4"])
 
         # No connector line — indent only
         line_lbl = QLabel('')
@@ -268,10 +268,10 @@ class AgentGridWidget(QWidget):
         bot.addWidget(line_lbl)
 
         # Spacer to align with name (icon width=18 + spacing=6 = 24px offset)
-        bot.addSpacing(6)
+        bot.addSpacing(TOKENS.spacing["legacy_6"])
 
         obj_lbl = QLabel(self._OBJECTIVES[name][0])
-        obj_lbl.setFont(QFont("Courier New", 6))
+        obj_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_6"]))
         obj_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
         bot.addWidget(obj_lbl, stretch=1)
 
@@ -337,16 +337,16 @@ class AgentGridWidget(QWidget):
                 icon_col   = accent
                 status_col = accent
                 line_col   = accent
-                bg_style   = f"background: rgba(0,229,255,18); border-left: 3px solid {accent}; border-radius: 2px;"
+                bg_style   = f"background: {qss_rgba(C.ENERGY, TOKENS.opacity['active_card'])}; border-left: 3px solid {accent}; border-radius: {TOKENS.radii['legacy_2']}px;"
             else:
-                name_col   = "#5a9090"
-                conf_col   = "#3d6a6a"
-                obj_col    = "#335858"
-                dot_col    = "#3d6a6a"
-                icon_col   = "#3d6a6a"
-                status_col = "#335858"
-                line_col   = "#1a3535"
-                bg_style   = "background: transparent; border-left: 2px solid #1a3535;"
+                name_col   = C.TEXT_MED
+                conf_col   = C.TEXT_DIM
+                obj_col    = C.TEXT_DIM
+                dot_col    = C.TEXT_DIM
+                icon_col   = C.TEXT_DIM
+                status_col = C.TEXT_DIM
+                line_col   = C.BORDER_A
+                bg_style   = f"background: transparent; border-left: 2px solid {C.BORDER_A};"
 
             # Apply bg to card widget
             card["widget"].setStyleSheet(bg_style)
@@ -364,7 +364,7 @@ class AgentGridWidget(QWidget):
                 f"color: {conf_col}; background: transparent;"
             )
             card["status_lbl"].setStyleSheet(
-                f"color: {status_col}; background: transparent; letter-spacing: 1px;"
+                f"color: {status_col}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
             card["obj_lbl"].setText(
                 self._OBJECTIVES.get(name, ["Operating"])[st[2]]
@@ -561,7 +561,7 @@ class AIActivityCanvas(QWidget):
             "idle":        ("◈ STANDBY",              C.TEXT_DIM),
         }
         lbl_txt, lbl_col = mode_labels.get(mode, ("◈ AI ACTIVITY", C.TEXT_MED))
-        p.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
+        p.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.Bold))
         p.setPen(QPen(qcol(lbl_col), 1))
         p.drawText(QRectF(8, 4, W - 16, 14), Qt.AlignmentFlag.AlignLeft, lbl_txt)
 

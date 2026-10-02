@@ -25,7 +25,7 @@ class SetupOverlay(QWidget):
             SetupOverlay {{
                 background: {C.BG};
                 border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                border-radius: {TOKENS.radii['legacy_6']}px;
             }}
         """)
 
@@ -39,37 +39,37 @@ class SetupOverlay(QWidget):
         self.validation_finished.connect(self._on_validation_finished)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 22, 30, 22)
-        layout.setSpacing(8)
+        layout.setContentsMargins(TOKENS.spacing["legacy_30"], TOKENS.spacing["legacy_22"], TOKENS.spacing["legacy_30"], TOKENS.spacing["legacy_22"])
+        layout.setSpacing(TOKENS.spacing["legacy_8"])
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, font_size=TOKENS.font_sizes["legacy_9"], bold=False, color=C.PRI,
                  align=Qt.AlignmentFlag.AlignCenter):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
+            w.setFont(QFont(TECH_FONT, font_size,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 13, True))
-        layout.addWidget(_lbl("Configure J.A.R.V.I.S. before first boot.", 9, color=C.PRI_DIM))
-        layout.addSpacing(6)
+        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", TOKENS.font_sizes["legacy_13"], True))
+        layout.addWidget(_lbl("Configure J.A.R.V.I.S. before first boot.", TOKENS.font_sizes["legacy_9"], color=C.PRI_DIM))
+        layout.addSpacing(TOKENS.spacing["legacy_6"])
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep)
-        layout.addSpacing(4)
+        layout.addSpacing(TOKENS.spacing["legacy_4"])
 
-        layout.addWidget(_lbl("GEMINI API KEY", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("GEMINI API KEY", TOKENS.font_sizes["legacy_8"], color=C.TEXT_DIM,
                                align=Qt.AlignmentFlag.AlignLeft))
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._key_input.setPlaceholderText("Paste Gemini API key")
-        self._key_input.setFont(QFont("Courier New", 10))
+        self._key_input.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_10"]))
         self._key_input.setFixedHeight(32)
         self._key_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
+                border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_3']}px; padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_8']}px;
             }}
             QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
         """)
@@ -77,12 +77,12 @@ class SetupOverlay(QWidget):
 
         self._validation_lbl = QLabel("Only a verified Gemini key will be accepted.")
         self._validation_lbl.setWordWrap(True)
-        self._validation_lbl.setFont(QFont("Arial", 8))
+        self._validation_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"]))
         self._validation_lbl.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         layout.addWidget(self._validation_lbl)
         self._setup_status = QLabel("Enter a verified key to continue.")
         self._setup_status.setWordWrap(True)
-        self._setup_status.setFont(QFont(TECH_FONT, 8))
+        self._setup_status.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_8"]))
         self._setup_status.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
         layout.addWidget(self._setup_status)
 
@@ -97,15 +97,15 @@ class SetupOverlay(QWidget):
         self._guide_scroll.setVisible(False)
         guide_body = QWidget()
         guide_layout = QVBoxLayout(guide_body)
-        guide_layout.setContentsMargins(0, 0, 0, 0)
-        guide_layout.setSpacing(4)
+        guide_layout.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        guide_layout.setSpacing(TOKENS.spacing["legacy_4"])
         guide = QLabel(
             "1. Open Google AI Studio and sign in.\n"
             "2. Create an API key for your project.\n"
             "3. Copy it here; JARVIS verifies it before continuing."
         )
         guide.setWordWrap(True)
-        guide.setStyleSheet(f"color: {C.TEXT_MED}; background: {C.DARK}; padding: 8px;")
+        guide.setStyleSheet(f"color: {C.TEXT_MED}; background: {C.DARK}; padding: {TOKENS.spacing['legacy_8']}px;")
         guide_layout.addWidget(guide)
         self._api_key_link = QPushButton("Open Google AI Studio")
         self._api_key_link.setAccessibleName("Open Google AI Studio API key page")
@@ -114,17 +114,17 @@ class SetupOverlay(QWidget):
         guide_layout.addWidget(self._api_key_link)
         self._guide_scroll.setWidget(guide_body)
         layout.addWidget(self._guide_scroll)
-        layout.addSpacing(8)
+        layout.addSpacing(TOKENS.spacing["legacy_8"])
 
         self._remember_key = QPushButton("☆  Remember API key on this machine")
-        self._remember_key.setFont(QFont("Courier New", 7))
+        self._remember_key.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"]))
         self._remember_key.setFixedHeight(28)
         self._remember_key.setCursor(Qt.CursorShape.PointingHandCursor)
         self._remember_key.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; color: {C.TEXT_MED};
-                border: 1px solid {C.BORDER}; border-radius: 3px;
-                text-align: left; padding-left: 10px;
+                border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_3']}px;
+                text-align: left; padding-left: {TOKENS.spacing['legacy_10']}px;
             }}
             QPushButton:hover {{
                 color: {C.TEXT}; border: 1px solid {C.BORDER_B};
@@ -139,23 +139,23 @@ class SetupOverlay(QWidget):
         self._replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         layout.addWidget(self._replay_intro)
 
-        layout.addSpacing(12)
+        layout.addSpacing(TOKENS.spacing["legacy_12"])
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep2)
-        layout.addSpacing(4)
+        layout.addSpacing(TOKENS.spacing["legacy_4"])
 
-        layout.addWidget(_lbl("OPERATING SYSTEM", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("OPERATING SYSTEM", TOKENS.font_sizes["legacy_8"], color=C.TEXT_DIM,
                                align=Qt.AlignmentFlag.AlignLeft))
         det_name = {"windows": "Windows", "mac": "macOS", "linux": "Linux"}[detected]
-        layout.addWidget(_lbl(f"Auto-detected: {det_name}", 8, color=C.ACC2,
+        layout.addWidget(_lbl(f"Auto-detected: {det_name}", TOKENS.font_sizes["legacy_8"], color=C.ACC2,
                                align=Qt.AlignmentFlag.AlignLeft))
 
-        os_row = QHBoxLayout(); os_row.setSpacing(6)
+        os_row = QHBoxLayout(); os_row.setSpacing(TOKENS.spacing["legacy_6"])
         self._os_btns: dict[str, QPushButton] = {}
         for key, label in [("windows","⊞  Windows"),("mac","☰  macOS"),("linux","🐧  Linux")]:
             btn = QPushButton(label)
-            btn.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+            btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_9"], QFont.Weight.Bold))
             btn.setFixedHeight(32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, k=key: self._sel(k))
@@ -163,16 +163,16 @@ class SetupOverlay(QWidget):
             self._os_btns[key] = btn
         layout.addLayout(os_row)
         self._sel(detected)
-        layout.addSpacing(12)
+        layout.addSpacing(TOKENS.spacing["legacy_12"])
 
         self._init_btn = QPushButton("▸  INITIALISE SYSTEMS")
-        self._init_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        self._init_btn.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Bold))
         self._init_btn.setFixedHeight(36)
         self._init_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._init_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
+                border: 1px solid {C.PRI_DIM}; border-radius: {TOKENS.radii['legacy_3']}px;
             }}
             QPushButton:hover {{
                 background: {C.PRI_GHO}; border: 1px solid {C.PRI};
@@ -231,14 +231,15 @@ class SetupOverlay(QWidget):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {fg}; color: {bg};
-                        border: none; border-radius: 3px; font-weight: bold;
+                        border: none; border-radius: {TOKENS.radii['legacy_3']}px;
+                        font-weight: {TOKENS.font_weights['bold']};
                     }}
                 """)
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.DARK}; color: {C.TEXT_DIM};
-                        border: 1px solid {C.BORDER}; border-radius: 3px;
+                        border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_3']}px;
                     }}
                     QPushButton:hover {{ color: {C.TEXT}; border: 1px solid {C.BORDER_B}; }}
                 """)
@@ -258,8 +259,8 @@ class SetupOverlay(QWidget):
             self._remember_key.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {C.GREEN_D};
-                    border: 1px solid {C.GREEN_D}; border-radius: 3px;
-                    text-align: left; padding-left: 10px;
+                    border: 1px solid {C.GREEN_D}; border-radius: {TOKENS.radii['legacy_3']}px;
+                    text-align: left; padding-left: {TOKENS.spacing['legacy_10']}px;
                 }}
                 QPushButton:hover {{ color: {C.GREEN}; border: 1px solid {C.GREEN}; }}
             """)
@@ -268,8 +269,8 @@ class SetupOverlay(QWidget):
             self._remember_key.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {C.TEXT_MED};
-                    border: 1px solid {C.BORDER}; border-radius: 3px;
-                    text-align: left; padding-left: 10px;
+                    border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_3']}px;
+                    text-align: left; padding-left: {TOKENS.spacing['legacy_10']}px;
                 }}
                 QPushButton:hover {{ color: {C.TEXT}; border: 1px solid {C.BORDER_B}; }}
             """)
@@ -324,7 +325,7 @@ class SetupOverlay(QWidget):
             self._key_input.setStyleSheet(f"""
                 QLineEdit {{
                     background: {C.DARK}; color: {C.TEXT};
-                    border: 1px solid {C.RED}; border-radius: 3px; padding: 4px 8px;
+                    border: 1px solid {C.RED}; border-radius: {TOKENS.radii['legacy_3']}px; padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_8']}px;
                 }}
                 QLineEdit:focus {{ border: 1px solid {C.RED}; }}
             """)

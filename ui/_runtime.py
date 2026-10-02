@@ -29,19 +29,24 @@ from PyQt6.QtGui import (
 )
 
 from .first_run import (
-    INTRO_CHAPTER_RENDER_ATTEMPTS, INTRO_MASTERING_VERSION,
+    INTRO_MASTERING_VERSION,
     INTRO_PERFORMANCE_VERSION, INTRO_SAMPLE_RATE, INTRO_SEQUENCE_VERSION,
-    INTRO_TTS_MODELS, INTRO_VOICE_CACHE_DIR, FirstRunIntroOverlay, IntroChapter,
-    _cache_intro_voice_async, _daily_greeting, _extract_intro_pcm,
+    INTRO_VOICE_CACHE_DIR, FirstRunIntroOverlay, IntroChapter,
+    _configure_intro_tts_renderers,
+    _cache_intro_voice_async, _daily_greeting,
     _generate_intro_aligned_speech_pcm, _generate_intro_segmented_speech_pcm,
     _generate_intro_speech_pcm, _intro_caption_boundaries, _intro_voice_cache_path,
     _is_intro_quota_error, _load_intro_timing_cache, _master_intro_pcm,
     _pcm_duration_seconds, _play_intro_pcm, _prepare_intro_voice_cache,
-    _render_intro_segments_with_live, _render_intro_with_live, _request_intro_tts,
+    _render_intro_segments_with_live, _render_intro_with_live,
     _tour_captions, _tour_chapters, _tour_narration, _voice_display_name,
     _write_intro_timing_cache,
 )
 from core.api_key_validator import ApiKeyValidationResult
+from core.voice_catalog import (
+    DEFAULT_PROVIDER, DEFAULT_VOICE_ID, EXTERNAL_PROVIDERS,
+    PROVIDER_TUTORIAL, PROVIDER_VOICES,
+)
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QCheckBox, QFormLayout, QFrame, QGraphicsOpacityEffect,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QPushButton,
@@ -193,17 +198,7 @@ def route_jarvis_ui_command(command: str):
         r"^go offline(?: jarvis)?$",
     )
     return ("quit_jarvis", None) if any(re.fullmatch(pattern, normalized) for pattern in patterns) else None
-VOICE_OPTIONS = [
-    ("Puck",          "puck"),
-    ("Charon",        "charon"),
-    ("Kore",          "kore"),
-    ("Fenrir",        "fenrir"),
-    ("Aoede",         "aoede"),
-    ("Leda",          "leda"),
-    ("Orus",          "orus"),
-    ("Schedar",       "schedar"),
-    ("Zubenelgenubi", "zubenelgenubi"),
-]
+VOICE_OPTIONS = list(PROVIDER_VOICES["gemini"])
 VOICE_VALUE_TO_LABEL = {value: label for label, value in VOICE_OPTIONS}
 VOICE_LABEL_TO_VALUE = {label.lower(): value for label, value in VOICE_OPTIONS}
 
@@ -213,7 +208,7 @@ _LEFT_W  = 230
 _RIGHT_W = 370
 
 _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
-from .theme import C, DISPLAY_FONT, QFont, TECH_FONT, ThemeManager, UI_FONT, _load_bundled_fonts, qcol
+from .theme import C, DISPLAY_FONT, QFont, TECH_FONT, ThemeManager, TOKENS, UI_FONT, _load_bundled_fonts, qcol
 
 # ---------------------------------------------------------------------------
 # ChatBubbleWidget — chat-style conversation view
@@ -266,12 +261,18 @@ from typing import List, Optional
 # ---------------------------------------------------------------------------
 
 _FILE_ICONS = {
-    "image":   ("🖼", "#00d4ff"), "video":   ("🎬", "#ff6b00"),
-    "audio":   ("🎵", "#cc44ff"), "pdf":     ("📄", "#ff4444"),
-    "word":    ("📝", "#4488ff"), "excel":   ("📊", "#44bb44"),
-    "code":    ("💻", "#ffcc00"), "archive": ("📦", "#ff8844"),
-    "pptx":    ("📊", "#ff6622"), "text":    ("📃", "#aaaaaa"),
-    "data":    ("🔧", "#88ddff"), "unknown": ("📎", "#888888"),
+    "image":   ("🖼", TOKENS.file_category_colors["image"]),
+    "video":   ("🎬", TOKENS.file_category_colors["video"]),
+    "audio":   ("🎵", TOKENS.file_category_colors["audio"]),
+    "pdf":     ("📄", TOKENS.file_category_colors["pdf"]),
+    "word":    ("📝", TOKENS.file_category_colors["word"]),
+    "excel":   ("📊", TOKENS.file_category_colors["excel"]),
+    "code":    ("💻", TOKENS.file_category_colors["code"]),
+    "archive": ("📦", TOKENS.file_category_colors["archive"]),
+    "pptx":    ("📊", TOKENS.file_category_colors["pptx"]),
+    "text":    ("📃", TOKENS.file_category_colors["text"]),
+    "data":    ("🔧", TOKENS.file_category_colors["data"]),
+    "unknown": ("📎", TOKENS.file_category_colors["unknown"]),
 }
 _EXT_TO_CAT = {
     **dict.fromkeys(["jpg","jpeg","png","gif","webp","bmp","tiff","svg","ico"], "image"),

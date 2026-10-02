@@ -2046,6 +2046,7 @@ def main():
 
         return self_test_main([argument for argument in sys.argv[1:] if argument != "--self-test"])
 
+    from core.intro_tts import render_intro_segments_with_live, render_intro_with_live
     from ui import JarvisUI
 
     running_as_app = getattr(sys, "frozen", False)
@@ -2057,7 +2058,11 @@ def main():
         return
     print("[JARVIS] ⚡ Powering up the interface...")
     try:
-        ui = JarvisUI("face.png")
+        ui = JarvisUI(
+            "face.png",
+            intro_tts_renderer=render_intro_with_live,
+            segmented_intro_tts_renderer=render_intro_segments_with_live,
+        )
     except Exception as exc:
         print(f"[JARVIS] ❌ Interface startup failed: {exc}")
         traceback.print_exc()

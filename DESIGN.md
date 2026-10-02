@@ -1,44 +1,50 @@
 # Design System
 
-## Theme
+## Source of truth
 
-Arc-reactor command interface: a near-black blue-tinted environment designed for a desktop operator in a dim room. Cyan identifies active energy and primary actions; amber, green, and red are reserved for semantic states.
+`ui/theme/tokens.py` is the runtime source for JARVIS UI color palettes, type families, sizes, weights, line heights and letter spacing, layout spacing, radii, opacity, and motion. `arc_reactor` is the active palette. Existing `stealth_red`, `vibranium_purple`, `nanotech_gold`, and `platinum` preferences remain available from that same registry. Legacy `C.*` names and font calls resolve through the tokens so existing widgets keep their public compatibility surface.
 
-## Color Palette
+`docs/ui/figma-spec.md` defines screen structure, component roles, states, and accessibility behavior. This document and the tokens retain the PRODUCT.md / Arc Reactor identity: solid dark surfaces, cyan primary actions, semantic status colors, bundled fonts, and no decorative blur. The token palette adjusts low-contrast text colors; no spec-only palette or new font is introduced.
 
-- Workspace: `#000306`
-- Primary surface: `#00080F`
-- Raised surface: `#000C18`
-- Structural border: `#0A2535`
-- Bright border: `#1A5C7A`
-- Primary reactor cyan: `#00C8FF`
-- Energy cyan: `#00E5FF`
-- Primary text: `#E8F8FF`
-- Secondary text: `#3A9AB0`
-- Dim telemetry: `#1E5A6A`
-- Success: `#00FF88`
-- Warning: `#FFB300`
-- Error: `#FF2244`
+## Arc Reactor palette
+
+| Role | Token | Value |
+|---|---|---|
+| Workspace | `BG` | `#000306` |
+| Primary panel | `PANEL` | `#00080f` |
+| Raised surface | `DARK2` | `#000c18` |
+| Structural border | `BORDER` | `#0a2535` |
+| Active border | `BORDER_B` | `#1a5c7a` |
+| Reactor cyan | `PRI` | `#00c8ff` |
+| Energy cyan | `ENERGY` | `#00e5ff` |
+| Primary text | `WHITE` | `#e8f8ff` |
+| Secondary text | `TEXT_MED` | `#3a9ab0` |
+| Dim text | `TEXT_DIM` | `#598691` |
+| Success | `GREEN` | `#00ff88` |
+| Warning | `ACC2` | `#ffb300` |
+| Error | `RED` | `#ff2244` |
+
+Text and focus combinations are checked from the token registry. Text roles target at least 4.5:1 against each declared panel, state-card, and hover surface in every theme; warning-toast and primary-button text pairs are checked separately. The primary focus boundary targets at least 3:1 against the declared surfaces. The executable `scripts/check_ui_contrast.py` reports every palette's minimum ratios, and the UI token regression tests also enforce the thresholds.
 
 ## Typography
 
-- **Primary UI:** Space Grotesk, weight 400 for body copy and 500/600 for headings, navigation, buttons, settings, dialogue, and popup titles.
-- **Technical data:** JetBrains Mono, weight 400/500 for timestamps, metrics, coordinates, identifiers, terminal output, and status readouts.
-- Avoid novelty sci-fi fonts and excessive bold weights. The reactor, motion, spacing, and lighting carry the cinematic identity.
-- Letter spacing is reserved for short system labels and must not reduce body-copy legibility.
+- UI text: bundled Space Grotesk.
+- Technical data: bundled JetBrains Mono.
+- Semantic sizes and line heights: display 32/40, title 20/28, section 14/20, body 14/20, label 12/16, and micro 11/16.
+- The token registry retains numeric legacy size aliases while older dense widgets are replaced in later UI work. New components use semantic size names.
 
-## Components
+## Spacing, radii, and motion
 
-- Structural panels use thin cyan-tinted borders and near-black fills.
-- Interactive controls retain compact radii and clear active, hover, focus, and disabled states.
-- The reactor visualization is the primary identity motif.
-- Overlays are opaque enough for legibility and avoid decorative blur.
-- Progress represents actual sequence position, not fictional hardware health.
+- Spacing scale: 4, 8, 12, 16, 24, 32, 48, and 64 px. Compatibility aliases preserve existing values during the staged desktop refactor.
+- Radii: 4, 6, 8, 12, 16, and 24 px, with 999 px reserved for pill controls. Compatibility aliases preserve existing component geometry.
+- Motion: fast 120 ms, normal 180 ms, state change 240 ms, and emphasis 320 ms. Standard transitions use OutQuart easing, emphasis transitions use OutCubic, and reduced motion uses Linear with no continuous animation and zero-duration transitions where practical.
 
-## Layout
+## Components and layout
 
-The normal application keeps its existing three-panel console and centered reactor HUD. The first-run introduction temporarily owns the full application viewport, assembles content from the center outward, and then hands off to the centered initialization overlay.
+The orb/reactor is the primary identity element. Panels use opaque dark fills and thin structural borders. Use cyan for primary actions and focus, with amber, green, and red reserved for semantic states. The UI labels every state with text and an icon as well as color, uses `—` for unavailable values, and describes the existing unmeasured waveform as activity.
 
-## Motion
+The desktop implementation follows the shared component and state model in `docs/ui/figma-spec.md`. Compact mode retains its 80×80 collapsed control and provides a separate expanded surface. Settings preserve existing graphics profiles and user preferences.
 
-Use staged opacity, scale, and position reveals with exponential easing. Avoid bounce, strobing, or continuous decorative movement. The first-run sequence may be cinematic because it occurs once; routine launches should enter the console directly unless the user explicitly enables replay on every launch.
+## Motion and anti-patterns
+
+Motion marks an action or meaningful state transition. Routine idle screens do not pulse continuously. Reduced motion respects the operating system preference and the explicit setting. Avoid decorative gradients, blur, dense scanlines, hover animation on every control, repeated all-caps labels, and fictitious hardware or connection telemetry.

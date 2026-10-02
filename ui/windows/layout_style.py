@@ -34,8 +34,8 @@ class _MainWindowStyleMixin:
             self._utility_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {C.PANEL2}; color: {C.TEXT_MED};
-                    border: 1px solid {C.BORDER}; border-radius: 6px;
-                    font-size: 12px;
+                    border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_6']}px;
+                    font-size: {TOKENS.font_sizes['legacy_12']}px;
                 }}
                 QPushButton:hover {{ color: {C.WHITE}; border-color: {C.BORDER_B}; }}
                 QPushButton::menu-indicator {{ image: none; }}
@@ -44,11 +44,11 @@ class _MainWindowStyleMixin:
             self._utility_menu.setStyleSheet(f"""
                 QMenu {{
                     background: {C.PANEL}; color: {C.WHITE};
-                    border: 1px solid {C.BORDER}; padding: 6px;
+                    border: 1px solid {C.BORDER}; padding: {TOKENS.spacing['legacy_6']}px;
                 }}
-                QMenu::item {{ padding: 7px 24px 7px 10px; border-radius: 4px; }}
+                QMenu::item {{ padding: {TOKENS.spacing['legacy_7']}px {TOKENS.spacing['legacy_24']}px {TOKENS.spacing['legacy_7']}px {TOKENS.spacing['legacy_10']}px; border-radius: {TOKENS.radii['legacy_4']}px; }}
                 QMenu::item:selected {{ background: {C.PRI_GHO}; color: {C.PRI}; }}
-                QMenu::separator {{ height: 1px; background: {C.BORDER}; margin: 5px; }}
+                QMenu::separator {{ height: 1px; background: {C.BORDER}; margin: {TOKENS.spacing['legacy_5']}px; }}
             """)
         label_styles = (
             ("_header_brand_lbl", C.WHITE),
@@ -85,14 +85,14 @@ class _MainWindowStyleMixin:
                 button.setStyleSheet(f"""
                     QPushButton {{
                         background: {C.PRI_GHO}; color: {C.PRI};
-                        border: 1px solid {C.PRI_DIM}; border-radius: 5px;
+                        border: 1px solid {C.PRI_DIM}; border-radius: {TOKENS.radii['legacy_5']}px;
                     }}
                 """)
             else:
                 button.setStyleSheet(f"""
                     QPushButton {{
                         background: transparent; color: {C.TEXT_MED};
-                        border: 1px solid {C.BORDER}; border-radius: 5px;
+                        border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_5']}px;
                     }}
                     QPushButton:hover {{ color: {C.WHITE}; border-color: {C.BORDER_B}; }}
                 """)
@@ -101,8 +101,8 @@ class _MainWindowStyleMixin:
         button.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; color: {color};
-                border: 1px solid transparent; border-radius: 5px;
-                padding: 0 11px;
+                border: 1px solid transparent; border-radius: {TOKENS.radii['legacy_5']}px;
+                padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_11']}px;
             }}
             QPushButton:hover {{
                 background: {C.PRI_GHO}; color: {hover}; border-color: {C.BORDER_B};
@@ -127,7 +127,7 @@ class _MainWindowStyleMixin:
                 QFrame#CommandControlTrack {{
                     background: {C.PANEL2};
                     border: 1px solid {C.BORDER};
-                    border-radius: 6px;
+                    border-radius: {TOKENS.radii['legacy_6']}px;
                 }}
                 QFrame#CommandRailDivider {{
                     color: {C.BORDER};
@@ -139,11 +139,11 @@ class _MainWindowStyleMixin:
             self._rail_divider.setStyleSheet(f"color: {C.BORDER_B};")
         if hasattr(self, "_command_title_lbl"):
             self._command_title_lbl.setStyleSheet(
-                f"color: {C.WHITE}; background: transparent; letter-spacing: 1px;"
+                f"color: {C.WHITE}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
         if hasattr(self, "_rail_mode_lbl"):
             self._rail_mode_lbl.setStyleSheet(
-                f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: 1px;"
+                f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
         if hasattr(self, "_rail_status_dot"):
             self._rail_status_dot.setStyleSheet(f"color: {C.PRI}; background: transparent;")
@@ -160,7 +160,7 @@ class _MainWindowStyleMixin:
         label = getattr(self, "_maker_signature_lbl", None)
         if label is not None:
             label.setStyleSheet(
-                f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: 1px;"
+                f"color: {C.TEXT_DIM}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
             )
 
     def _style_command_controls(self):
@@ -175,8 +175,8 @@ class _MainWindowStyleMixin:
             self._quit_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {C.RED};
-                    border: 1px solid {C.RED_D}; border-radius: 5px;
-                    padding: 0 13px;
+                    border: 1px solid {C.RED_D}; border-radius: {TOKENS.radii['legacy_5']}px;
+                    padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_13']}px;
                 }}
                 QPushButton:hover, QPushButton:focus {{
                     background: {C.RED_BG}; color: {C.MUTED_C}; border-color: {C.RED};

@@ -19,20 +19,20 @@ class ChatBubbleWidget(QWidget):
         self.setStyleSheet("background: transparent;")
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(0)
+        lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        lay.setSpacing(TOKENS.spacing["legacy_0"])
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setStyleSheet(f"""
-            QScrollArea {{ background: {C.PANEL}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
+            QScrollArea {{ background: {C.PANEL}; border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_4']}px; }}
             QScrollBar:vertical {{
                 background: {C.BG}; width: 6px; border: none;
             }}
             QScrollBar::handle:vertical {{
-                background: {C.BORDER_B}; border-radius: 3px; min-height: 16px;
+                background: {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_3']}px; min-height: 16px;
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         """)
@@ -40,8 +40,8 @@ class ChatBubbleWidget(QWidget):
         self._container = QWidget()
         self._container.setStyleSheet(f"background: {C.PANEL};")
         self._c_lay = QVBoxLayout(self._container)
-        self._c_lay.setContentsMargins(8, 8, 8, 8)
-        self._c_lay.setSpacing(6)
+        self._c_lay.setContentsMargins(TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_8"])
+        self._c_lay.setSpacing(TOKENS.spacing["legacy_6"])
         self._c_lay.addStretch()
 
         self._scroll.setWidget(self._container)
@@ -58,20 +58,20 @@ class ChatBubbleWidget(QWidget):
             }}
         """)
         ib_lay = QHBoxLayout(input_bar)
-        ib_lay.setContentsMargins(6, 4, 6, 4)
-        ib_lay.setSpacing(6)
+        ib_lay.setContentsMargins(TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_4"], TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_4"])
+        ib_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         self._input = QLineEdit()
         self._input.setPlaceholderText("Type a message to JARVIS…")
-        self._input.setFont(QFont(UI_FONT, 10))
+        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
         self._input.setFixedHeight(32)
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK};
                 color: {C.WHITE};
                 border: 1px solid {qss_rgba(C.ENERGY, 85)};
-                border-radius: 4px;
-                padding: 4px 10px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
+                padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px;
             }}
             QLineEdit:focus {{
                 border: 1px solid {C.ENERGY};
@@ -87,14 +87,14 @@ class ChatBubbleWidget(QWidget):
         send_btn = QPushButton("▸")
         self._send_btn = send_btn
         send_btn.setFixedSize(32, 32)
-        send_btn.setFont(QFont(DISPLAY_FONT, 12, QFont.Weight.DemiBold))
+        send_btn.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_12"], QFont.Weight.DemiBold))
         send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         send_btn.setStyleSheet(f"""
             QPushButton {{
                 background: {qss_rgba(C.ENERGY, 34)};
                 color: {C.ENERGY};
                 border: 1px solid {qss_rgba(C.ENERGY, 102)};
-                border-radius: 4px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
             }}
             QPushButton:hover {{
                 background: {qss_rgba(C.ENERGY, 68)};
@@ -112,9 +112,9 @@ class ChatBubbleWidget(QWidget):
     def refresh_theme(self):
         """Restyle the live conversation and rebuild existing bubbles."""
         self._scroll.setStyleSheet(f"""
-            QScrollArea {{ background: {C.PANEL}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
+            QScrollArea {{ background: {C.PANEL}; border: 1px solid {C.BORDER}; border-radius: {TOKENS.radii['legacy_4']}px; }}
             QScrollBar:vertical {{ background: {C.BG}; width: 6px; border: none; }}
-            QScrollBar::handle:vertical {{ background: {C.BORDER_B}; border-radius: 3px; min-height: 16px; }}
+            QScrollBar::handle:vertical {{ background: {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_3']}px; min-height: 16px; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         """)
         self._scroll.viewport().setStyleSheet(f"background: {C.PANEL};")
@@ -125,7 +125,7 @@ class ChatBubbleWidget(QWidget):
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.WHITE}; border: 1px solid {C.ENERGY};
-                border-radius: 4px; padding: 4px 10px;
+                border-radius: {TOKENS.radii['legacy_4']}px; padding: {TOKENS.spacing['legacy_4']}px {TOKENS.spacing['legacy_10']}px;
             }}
             QLineEdit:focus {{ border: 1px solid {C.ENERGY}; background: {C.DARK2}; }}
             QLineEdit::placeholder {{ color: {C.TEXT_DIM}; }}
@@ -133,7 +133,7 @@ class ChatBubbleWidget(QWidget):
         self._send_btn.setStyleSheet(f"""
             QPushButton {{
                 background: {C.PRI_GHO}; color: {C.ENERGY};
-                border: 1px solid {C.ENERGY_D}; border-radius: 4px;
+                border: 1px solid {C.ENERGY_D}; border-radius: {TOKENS.radii['legacy_4']}px;
             }}
             QPushButton:hover {{ background: {C.DARK2}; border-color: {C.ENERGY}; color: {C.WHITE}; }}
         """)
@@ -170,9 +170,9 @@ class ChatBubbleWidget(QWidget):
             self._c_lay.removeWidget(self._typing_bubble)
             self._typing_bubble.deleteLater()
         lbl = QLabel(partial + '▌')
-        lbl.setFont(QFont(UI_FONT, 9))
+        lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"]))
         lbl.setWordWrap(True)
-        lbl.setStyleSheet(f'color: {C.PRI}; background: {C.PRI_GHO}; border: 1px solid {qss_rgba(C.PRI, 68)}; border-radius: 6px; padding: 6px 10px;')
+        lbl.setStyleSheet(f'color: {C.PRI}; background: {C.PRI_GHO}; border: 1px solid {qss_rgba(C.PRI, 68)}; border-radius: {TOKENS.radii["legacy_6"]}px; padding: {TOKENS.spacing["legacy_6"]}px {TOKENS.spacing["legacy_10"]}px;')
         self._c_lay.addWidget(lbl)
         self._typing_bubble = lbl
         sb = self._scroll.verticalScrollBar()
@@ -254,8 +254,8 @@ class ChatBubbleWidget(QWidget):
         bubble = QWidget()
         bubble.setStyleSheet("background: transparent;")
         b_lay = QHBoxLayout(bubble)
-        b_lay.setContentsMargins(0, 0, 0, 0)
-        b_lay.setSpacing(0)
+        b_lay.setContentsMargins(TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"], TOKENS.spacing["legacy_0"])
+        b_lay.setSpacing(TOKENS.spacing["legacy_0"])
 
         if sender == "user":
             b_lay.addStretch()
@@ -267,30 +267,30 @@ class ChatBubbleWidget(QWidget):
             QWidget {{
                 background: {bg_col};
                 border: 1px solid {border_col};
-                border-radius: 8px;
+                border-radius: {TOKENS.radii['legacy_8']}px;
             }}
         """)
         c_lay = QVBoxLayout(card)
-        c_lay.setContentsMargins(10, 6, 10, 6)
-        c_lay.setSpacing(3)
+        c_lay.setContentsMargins(TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_6"], TOKENS.spacing["legacy_10"], TOKENS.spacing["legacy_6"])
+        c_lay.setSpacing(TOKENS.spacing["legacy_3"])
 
         # Header: name + timestamp
         hdr = QHBoxLayout()
-        hdr.setSpacing(4)
+        hdr.setSpacing(TOKENS.spacing["legacy_4"])
         name_lbl = QLabel(name)
-        name_lbl.setFont(QFont(DISPLAY_FONT, 8, QFont.Weight.DemiBold))
+        name_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
         name_lbl.setStyleSheet(f"color: {text_col}; background: transparent; border: none;")
         hdr.addWidget(name_lbl)
         hdr.addStretch()
         ts_lbl = QLabel(ts)
-        ts_lbl.setFont(QFont(UI_FONT, 7))
+        ts_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_7"]))
         ts_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent; border: none;")
         hdr.addWidget(ts_lbl)
         c_lay.addLayout(hdr)
 
         # Message text
         msg = QLabel(display)
-        msg.setFont(QFont(UI_FONT, 10))
+        msg.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"]))
         msg.setWordWrap(True)
         msg.setStyleSheet(f"color: {C.WHITE}; background: transparent; border: none;")
         c_lay.addWidget(msg)
@@ -331,52 +331,52 @@ class FocusDialogueWidget(QWidget):
         self.setStyleSheet("background: transparent;")
 
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(48, 2, 48, 10)
-        outer.setSpacing(0)
+        outer.setContentsMargins(TOKENS.spacing["legacy_48"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_48"], TOKENS.spacing["legacy_10"])
+        outer.setSpacing(TOKENS.spacing["legacy_0"])
 
         self._shell = QFrame()
         self._shell.setObjectName("focusDialogueShell")
         self._shell.setMaximumWidth(760)
         shell_lay = QVBoxLayout(self._shell)
-        shell_lay.setContentsMargins(16, 9, 16, 9)
-        shell_lay.setSpacing(6)
+        shell_lay.setContentsMargins(TOKENS.spacing["legacy_16"], TOKENS.spacing["legacy_9"], TOKENS.spacing["legacy_16"], TOKENS.spacing["legacy_9"])
+        shell_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         header = QHBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(TOKENS.spacing["legacy_8"])
         self._channel_lbl = QLabel("DIALOGUE LINK")
-        self._channel_lbl.setFont(QFont(DISPLAY_FONT, 8, QFont.Weight.DemiBold))
+        self._channel_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
         header.addWidget(self._channel_lbl)
         header.addStretch()
         self._live_lbl = QLabel("●  LIVE")
-        self._live_lbl.setFont(QFont(UI_FONT, 7, QFont.Weight.DemiBold))
+        self._live_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.DemiBold))
         header.addWidget(self._live_lbl)
         shell_lay.addLayout(header)
         self._channel_lbl.hide()
         self._live_lbl.hide()
 
         message_row = QHBoxLayout()
-        message_row.setSpacing(10)
+        message_row.setSpacing(TOKENS.spacing["legacy_10"])
         self._speaker_lbl = QLabel("JARVIS")
         self._speaker_lbl.setFixedWidth(62)
-        self._speaker_lbl.setFont(QFont(DISPLAY_FONT, 8, QFont.Weight.DemiBold))
+        self._speaker_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
         message_row.addWidget(self._speaker_lbl, alignment=Qt.AlignmentFlag.AlignTop)
         self._message_lbl = QLabel("Standing by.")
-        self._message_lbl.setFont(QFont(UI_FONT, 10, QFont.Weight.Medium))
+        self._message_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_10"], QFont.Weight.Medium))
         self._message_lbl.setWordWrap(True)
         self._message_lbl.setMaximumHeight(34)
         message_row.addWidget(self._message_lbl, stretch=1)
         shell_lay.addLayout(message_row)
 
         input_row = QHBoxLayout()
-        input_row.setSpacing(7)
+        input_row.setSpacing(TOKENS.spacing["legacy_7"])
         self._input = QLineEdit()
         self._input.setPlaceholderText("Give JARVIS a command")
-        self._input.setFont(QFont(UI_FONT, 9))
+        self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_9"]))
         self._input.setFixedHeight(30)
         self._input.returnPressed.connect(self._submit)
         input_row.addWidget(self._input, stretch=1)
         self._send_btn = QPushButton("SEND")
-        self._send_btn.setFont(QFont(UI_FONT, 8, QFont.Weight.DemiBold))
+        self._send_btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["legacy_8"], QFont.Weight.DemiBold))
         self._send_btn.setFixedSize(64, 30)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_btn.clicked.connect(self._submit)
@@ -420,11 +420,11 @@ class FocusDialogueWidget(QWidget):
     def refresh_theme(self):
         self._shell.setStyleSheet(f"""
             QFrame#focusDialogueShell {{
-                background: {C.PANEL}; border: 1px solid {C.BORDER_B}; border-radius: 7px;
+                background: {C.PANEL}; border: 1px solid {C.BORDER_B}; border-radius: {TOKENS.radii['legacy_7']}px;
             }}
         """)
         self._channel_lbl.setStyleSheet(
-            f"color: {C.TEXT_MED}; background: transparent; letter-spacing: 1px;"
+            f"color: {C.TEXT_MED}; background: transparent; letter-spacing: {TOKENS.letter_spacing['subtle']}px;"
         )
         self._live_lbl.setStyleSheet(f"color: {C.GREEN}; background: transparent;")
         self._speaker_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
@@ -432,7 +432,7 @@ class FocusDialogueWidget(QWidget):
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: {C.DARK}; color: {C.WHITE}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 0 10px;
+                border-radius: {TOKENS.radii['legacy_4']}px; padding: {TOKENS.spacing['legacy_0']}px {TOKENS.spacing['legacy_10']}px;
             }}
             QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
             QLineEdit::placeholder {{ color: {C.TEXT_DIM}; }}
@@ -440,7 +440,7 @@ class FocusDialogueWidget(QWidget):
         self._send_btn.setStyleSheet(f"""
             QPushButton {{
                 background: {C.PRI_GHO}; color: {C.PRI}; border: 1px solid {C.PRI_DIM};
-                border-radius: 4px;
+                border-radius: {TOKENS.radii['legacy_4']}px;
             }}
             QPushButton:hover, QPushButton:focus {{ background: {C.CARD}; border-color: {C.PRI}; }}
             QPushButton:pressed {{ background: {C.DARK2}; }}
@@ -490,7 +490,7 @@ class _SubtitleWidget(QWidget):
         self.setMaximumHeight(220)
         self.setStyleSheet("background: transparent;")
 
-        self._font = QFont(UI_FONT, 13, QFont.Weight.Medium)
+        self._font = QFont(UI_FONT, TOKENS.font_sizes["legacy_13"], QFont.Weight.Medium)
         self._done_col = qcol(C.TEXT)
         self._active_col = qcol(C.PRI)
         self._line_h = self._LINE_H

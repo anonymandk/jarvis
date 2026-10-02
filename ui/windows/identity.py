@@ -278,7 +278,6 @@ class _MainWindowIdentityMixin:
             self._log.append_log(f"SYS: Could not save TTS config: {e}")
 
         # Derive a friendly label for the log
-        from actions.tts_engine import PROVIDER_VOICES
         label = voice_id
         for lbl, vid in PROVIDER_VOICES.get(provider, []):
             if vid == voice_id:
@@ -314,7 +313,6 @@ class _MainWindowIdentityMixin:
                 d = json.loads(API_FILE.read_text(encoding="utf-8"))
                 provider = d.get("tts_provider", "gemini")
                 voice_id = d.get("tts_voice_id", "orus")
-            from actions.tts_engine import PROVIDER_VOICES
             label = voice_id.title()
             for lbl, vid in PROVIDER_VOICES.get(provider, []):
                 if vid == voice_id:
