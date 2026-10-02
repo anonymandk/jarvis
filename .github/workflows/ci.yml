@@ -49,6 +49,10 @@ jobs:
             requirements-desktop.txt
             requirements-api.txt
             requirements-dev.txt
+      - name: Install native libraries for headless desktop imports
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1 libportaudio2 xvfb
       - run: pip install -r requirements-dev.txt
       - name: Prepare isolated QA workspace
         env:
@@ -58,7 +62,7 @@ jobs:
       - name: Run full Python suite
         env:
           JARVIS_QA_WORKSPACE: ${{ runner.temp }}/jarvis-qa
-        run: python -m pytest -q tests
+        run: xvfb-run --auto-servernum python -m pytest -q tests
 
   frontend:
     runs-on: ubuntu-latest

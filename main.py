@@ -20,6 +20,11 @@ import importlib
 import time
 
 from core.live_model import pick_live_model
+from core.tool_approval import (
+    ToolApprovalManager,
+    draft_fingerprint,
+    explicit_message_request_matches,
+)
 
 
 def _lazy_action(module_name: str, attribute: str):
@@ -592,7 +597,7 @@ TOOL_DECLARATIONS = [
             "type": "OBJECT",
             "properties": {
                 "action":      {"type": "STRING", "description": "The action to perform"},
-                "description": {"type": "STRING", "description": "Natural language description of what to do"},
+                "description": {"type": "STRING", "description": "Natural language description of what to do. For restart or shutdown, explicitly say that the target is the computer (for example, 'restart my computer')."},
                 "value":       {"type": "STRING", "description": "Optional value: volume level, text to type, etc."}
             },
             "required": []
@@ -680,7 +685,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "dev_agent",
-        "description": "Builds complete multi-file projects from scratch: plans, writes files, installs deps, opens VSCode, runs and fixes errors.",
+        "description": "Builds complete multi-file projects from scratch: plans, writes files, installs deps, opens VSCode, runs and fixes errors. The dispatcher requires a separate explicit user confirmation before the project work begins; repeat the unchanged call only after that confirmation.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
@@ -710,7 +715,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "computer_control",
-        "description": "Direct computer control: type, click, hotkeys, scroll, move mouse, screenshots, find elements on screen.",
+        "description": "Direct computer control: type, click, hotkeys, scroll, move mouse, screenshots, find elements on screen. Every mutating action requires a separate explicit user confirmation; repeat the unchanged call only after confirmation. Screenshot, screen_find, and wait are observational actions.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
@@ -1171,6 +1176,7 @@ class JarvisLive:
         self._current_input_transcript = ""
         self._last_input_transcript = ""
         self._last_input_transcript_at = 0.0
+        self._approval_manager = ToolApprovalManager()
         self._pending_self_quit = False
         self._pending_self_quit_farewell_received = False
         self._self_quit_timer = None
@@ -1182,6 +1188,13 @@ class JarvisLive:
             return
         asyncio.run_coroutine_threadsafe(self.send_text(text), self._loop)
 
+    def _tool_approvals(self) -> ToolApprovalManager:
+        manager = getattr(self, "_approval_manager", None)
+        if manager is None:
+            manager = ToolApprovalManager()
+            self._approval_manager = manager
+        return manager
+
     async def send_text(self, text: str) -> bool:
         """Send a text turn from either the desktop callback or a web client."""
         if not self.session:
@@ -1189,6 +1202,9 @@ class JarvisLive:
         self._current_input_transcript = str(text or "").strip()
         if not self._current_input_transcript:
             return False
+        approvals = self._tool_approvals()
+        approvals.begin_user_turn(self._current_input_transcript)
+        approvals.finish_user_turn(self._current_input_transcript)
         self._last_input_transcript = self._current_input_transcript
         self._last_input_transcript_at = time.monotonic()
         outgoing_text = self._current_input_transcript
@@ -1372,6 +1388,93 @@ class JarvisLive:
         self._queue_self_quit_after_farewell()
         return f'Shutdown queued. Say exactly: "{SELF_QUIT_GOODBYE}"'
 
+    @staticmethod
+    def _pending_draft_fingerprint(kind: str) -> str:
+        if kind == "email":
+            module = importlib.import_module("actions.email_control")
+            draft = module._get_pending_email()
+        else:
+            module = importlib.import_module("actions.send_message")
+            draft = module._get_pending_message()
+        if not draft:
+            return ""
+        # Exclude timestamps and retain only fields that define the outgoing content.
+        keys = (
+            ("provider", "delivery", "to", "cc", "bcc", "subject", "body")
+            if kind == "email"
+            else ("platform", "receiver", "message_text")
+        )
+        content = {key: str(draft.get(key, "") or "") for key in keys}
+        return draft_fingerprint(content)
+
+    def _tool_approval_block(self, name: str, args: dict) -> str | None:
+        """Enforce later-turn approval for sensitive dispatches."""
+        manager = self._tool_approvals()
+        action = str(args.get("action") or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+        if name == "computer_control" and action not in {"screenshot", "screen_find", "wait"}:
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        if name == "dev_agent":
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        if name == "computer_settings":
+            description = str(args.get("description") or "").casefold()
+            dangerous = action in {"restart", "shutdown", "reboot", "poweroff", "power_off", "restart_computer", "shutdown_computer"}
+            if not dangerous and re.search(r"\b(restart|reboot|shutdown|shut down|power off|turn off)\b", description):
+                dangerous = True
+            if dangerous:
+                allowed, result = manager.request_operation(name, args)
+                if not allowed:
+                    return result
+                args["confirmed"] = "yes"
+                if action in {"reboot", "restart_computer"}:
+                    args["action"] = "restart"
+                elif action in {"poweroff", "power_off", "shutdown_computer"}:
+                    args["action"] = "shutdown"
+
+        if name == "email_control" and action == "approve":
+            fingerprint = self._pending_draft_fingerprint("email")
+            if not fingerprint:
+                return "There is no code-verified pending email approval. Nothing was sent."
+            allowed, result = manager.approve_draft("email", fingerprint)
+            return None if allowed else result
+
+        if (
+            name == "prepare_message_reply" and action in {"approve", "confirm", "send"}
+        ) or (
+            name == "send_message" and action in {"approve", "confirm"}
+        ):
+            fingerprint = self._pending_draft_fingerprint("message")
+            if not fingerprint:
+                return "There is no code-verified pending message approval. Nothing was sent."
+            allowed, result = manager.approve_draft("message", fingerprint)
+            return None if allowed else result
+
+        if name == "send_message" and action not in {"approve", "confirm", "cancel", "discard", "deny"}:
+            if manager.turn_complete and explicit_message_request_matches(manager.transcript, args):
+                return None
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        return None
+
+    def _record_pending_draft(self, name: str, args: dict, result: str) -> None:
+        text = str(result or "")
+        kind = ""
+        if name == "email_control" and "EMAIL_APPROVAL_REQUIRED|" in text:
+            kind = "email"
+        elif name == "prepare_message_reply" and "MESSAGE_APPROVAL_REQUIRED|" in text:
+            kind = "message"
+        elif name == "send_message" and "draft typed" in text.casefold():
+            kind = "message"
+        if kind:
+            fingerprint = self._pending_draft_fingerprint(kind)
+            if fingerprint:
+                self._tool_approvals().register_draft(kind, fingerprint)
+
     def update_voice(self, voice_name: str):
         self.voice_name = _normalize_voice_name(voice_name)
         self.ui.write_log(f"SYS: Voice change requested: {self.voice_name}")
@@ -1507,8 +1610,18 @@ class JarvisLive:
 
         intercepted = self._intercept_ui_tool_call(name, args)
         if intercepted is not None:
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
             return types.FunctionResponse(
                 id=fc.id, name=name, response={"result": intercepted}
+            )
+
+        approval_block = self._tool_approval_block(name, args)
+        if approval_block is not None:
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name, response={"result": approval_block}
             )
 
         if name == "save_memory":
@@ -1718,6 +1831,8 @@ class JarvisLive:
             traceback.print_exc()
             self.speak_error(name, e)
 
+        self._record_pending_draft(name, args, str(result or ""))
+
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
 
@@ -1816,8 +1931,12 @@ class JarvisLive:
                             if txt:
                                 if not in_buf:
                                     self._current_input_transcript = ""
+                                    self._tool_approvals().begin_user_turn()
                                 in_buf.append(txt)
                                 self._current_input_transcript = " ".join(in_buf).strip()
+                                self._tool_approvals().update_user_transcript(
+                                    self._current_input_transcript
+                                )
                                 if (
                                     not getattr(self, "_pending_self_quit", False)
                                     and self._is_explicit_self_quit_transcript(self._current_input_transcript)
@@ -1830,6 +1949,7 @@ class JarvisLive:
 
                             full_in = " ".join(in_buf).strip()
                             if full_in:
+                                self._tool_approvals().finish_user_turn(full_in)
                                 self._current_input_transcript = full_in
                                 self._last_input_transcript = full_in
                                 self._last_input_transcript_at = time.monotonic()
