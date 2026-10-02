@@ -28,7 +28,7 @@ from PyQt6.QtGui import (
     QPainterPath, QPen, QPixmap, QRadialGradient, QShortcut, QDesktopServices,
 )
 
-from ui_first_run import (
+from .first_run import (
     INTRO_CHAPTER_RENDER_ATTEMPTS, INTRO_MASTERING_VERSION,
     INTRO_PERFORMANCE_VERSION, INTRO_SAMPLE_RATE, INTRO_SEQUENCE_VERSION,
     INTRO_TTS_MODELS, INTRO_VOICE_CACHE_DIR, FirstRunIntroOverlay, IntroChapter,
