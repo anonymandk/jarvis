@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 jarvis = "main:cli_main"
 
 [tool.setuptools]
-py-modules = ["main", "ui", "ui_first_run"]
+py-modules = ["main", "ui_first_run"]
 
 [tool.setuptools.packages.find]
-include = ["actions*", "agent*", "api*", "awareness*", "config*", "core*", "memory*"]
+include = ["actions*", "agent*", "api*", "awareness*", "config*", "core*", "memory*", "ui*"]

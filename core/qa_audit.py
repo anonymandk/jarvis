@@ -40,7 +40,8 @@ def declared_tools(main_path: Path) -> list[str]:
 def repository_findings(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     main_path = root / "main.py"
-    ui_path = root / "ui.py"
+    ui_path = root / "ui"
+    ui_sources = sorted(ui_path.rglob("*.py")) if ui_path.is_dir() else []
     tools = declared_tools(main_path)
     missing = sorted(EXPECTED_TOOLS - set(tools))
     duplicates = sorted({name for name in tools if tools.count(name) > 1})
@@ -65,7 +66,7 @@ def repository_findings(root: Path) -> list[Finding]:
         ))
 
     exception_count = 0
-    for path in [main_path, ui_path, *sorted((root / "actions").glob("*.py"))]:
+    for path in [main_path, *ui_sources, *sorted((root / "actions").glob("*.py"))]:
         source = path.read_text(encoding="utf-8", errors="replace")
         exception_count += len(re.findall(r"except Exception(?:\s+as\s+\w+)?:", source))
     if exception_count >= 100:
@@ -90,7 +91,7 @@ def repository_findings(root: Path) -> list[Finding]:
             "Affected files: " + ", ".join(deprecated_sdk_files),
         ))
 
-    ui_source = ui_path.read_text(encoding="utf-8", errors="replace")
+    ui_source = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in ui_sources)
     hardcoded = len(re.findall(r"#[0-9A-Fa-f]{6,8}", ui_source))
     if hardcoded >= 50:
         findings.append(Finding(
@@ -98,6 +99,6 @@ def repository_findings(root: Path) -> list[Finding]:
             "Some controls may not update consistently when themes change.",
             "Switch through all themes and inspect existing overlays and detached panels.",
             "Runtime colors come from theme tokens or are explicitly invariant.",
-            f"Found {hardcoded} hexadecimal color literals in ui.py.",
+            f"Found {hardcoded} hexadecimal color literals in the ui package.",
         ))
     return findings
