@@ -26,3 +26,4 @@ Decisions made for the JARVIS UI mission. Dates use the repository's client time
 - Keyboard tab order, accessible names, 40×40 overlay targets, and 12 px minimum log text.
 - Migration of `ui_settings`, `layout_settings`, and low/medium/high graphics profiles without data loss.
 - Screenshot coverage for desktop, expanded and collapsed compact states, all session states, reduced motion, and each graphics profile.
+| 2026-10-01 | Extract the existing Qt UI into responsibility-based `ui/` modules while keeping `import ui` and its patchable compatibility surface through `ui/__init__.py` and `ui/_runtime.py`. | Existing engine, awareness, probe, and test callers rely on the module API; F2 must reorganize presentation code without changing its visible result. |

@@ -11,7 +11,7 @@ import importlib
 import sys
 from types import ModuleType
 
-_implementation = importlib.import_module("ui._legacy")
+_implementation = importlib.import_module("ui._runtime")
 _implementation_names = frozenset(vars(_implementation))
 _component_exports = {
     name: tuple(

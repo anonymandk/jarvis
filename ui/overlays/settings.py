@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import importlib
 
-_legacy = importlib.import_module("ui._legacy")
-globals().update({key: value for key, value in vars(_legacy).items() if not key.startswith("__")})
+_runtime = importlib.import_module("ui._runtime")
+globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
+
+from .base import _OverlayBase
 
 class ShortcutsOverlay(_OverlayBase):
     """Displays all keyboard shortcuts in a styled grid."""
@@ -292,6 +294,7 @@ class SettingsOverlay(_OverlayBase):
             self._s_name_input.text().strip()))
         id_lay.addWidget(save_name)
         self._s_replay_intro = QCheckBox("Play greeting at startup")
+        self._s_replay_intro.setFixedHeight(22)
         self._s_replay_intro.setChecked(bool(replay_intro))
         self._s_replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         self._s_replay_intro.toggled.connect(self.intro_replay_changed.emit)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import importlib
 
-_legacy = importlib.import_module("ui._legacy")
-globals().update({key: value for key, value in vars(_legacy).items() if not key.startswith("__")})
+_runtime = importlib.import_module("ui._runtime")
+globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
 
 class _MainWindowOnboardingMixin:
     def _check_config(self) -> bool:
@@ -58,7 +58,7 @@ class _MainWindowOnboardingMixin:
         ov.raise_()
         ov._center_in_parent()
 
-    def _legacy_on_setup_done(self, key: str, os_name: str, remember_key: bool):
+    def _runtime_on_setup_done(self, key: str, os_name: str, remember_key: bool):
         from core.api_key_validator import normalize_gemini_api_key
 
         normalized_key = normalize_gemini_api_key(key)

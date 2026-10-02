@@ -140,6 +140,7 @@ class UIRegressionTests(unittest.TestCase):
         overlay.set_auto_graphics_result("high", "Detected discrete graphics")
         self.assertIn("HIGH", overlay._graphics_btns["auto"]._desc.text())
         self.assertIn("Detected discrete graphics", overlay._graphics_note.text())
+        self.assertEqual(overlay._s_replay_intro.height(), 22)
         overlay.refresh_theme()
         self.assertIn("qlineargradient", overlay._graphics_btns["auto"].styleSheet())
         self.assertNotIn("qlineargradient", overlay._graphics_btns["medium"].styleSheet())
@@ -266,6 +267,7 @@ class UIRegressionTests(unittest.TestCase):
     def test_setup_exposes_replay_preference(self):
         overlay = ui.SetupOverlay(replay_every_launch=True)
         self.assertTrue(overlay.replay_intro_enabled())
+        self.assertEqual(overlay._replay_intro.height(), 22)
         overlay._replay_intro.setChecked(False)
         self.assertFalse(overlay.replay_intro_enabled())
         overlay.deleteLater()
@@ -1338,7 +1340,10 @@ class UIRegressionTests(unittest.TestCase):
 
     def test_qss_alpha_colors_are_explicit_rgba(self):
         self.assertEqual(ui.qss_rgba("#ff2244", 0x22), "rgba(255, 34, 68, 34)")
-        source = Path(ui.__file__).read_text(encoding="utf-8")
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in Path(ui.__file__).parent.rglob("*.py")
+        )
         self.assertNotRegex(source, r"\{C\.[A-Z_]+\}[0-9A-Fa-f]{2}")
 
     def test_unavailable_hardware_metrics_are_not_fabricated(self):

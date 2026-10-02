@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import importlib
 
-_legacy = importlib.import_module("ui._legacy")
-globals().update({key: value for key, value in vars(_legacy).items() if not key.startswith("__")})
+_runtime = importlib.import_module("ui._runtime")
+globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
 
 class SetupOverlay(QWidget):
     done = pyqtSignal(str, str, bool)
@@ -134,6 +134,7 @@ class SetupOverlay(QWidget):
         layout.addWidget(self._remember_key)
 
         self._replay_intro = QCheckBox("Play greeting at startup")
+        self._replay_intro.setFixedHeight(22)
         self._replay_intro.setChecked(bool(replay_every_launch))
         self._replay_intro.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         layout.addWidget(self._replay_intro)

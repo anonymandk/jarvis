@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import importlib
 
-_legacy = importlib.import_module("ui._legacy")
-globals().update({key: value for key, value in vars(_legacy).items() if not key.startswith("__")})
+_runtime = importlib.import_module("ui._runtime")
+globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
 
 from .paint import HudCanvasPaintMixin
 

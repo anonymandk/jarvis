@@ -106,3 +106,28 @@ The QA audit also reported 469 broad `except Exception` handlers, legacy `google
 The first full run identified 71 pre-existing test failures: missing first-run and onboarding behavior, adaptive graphics preferences, mission empty states, and smaller UI/action mismatches. Those behaviors were implemented without changing `JarvisLive`, action effects, hosted API behavior, or the prompt. The first-run tour plays only the selected Gemini voice from a versioned local PCM cache, and readiness stays gated until the intro ends. Playback errors release that gate so setup can be retried. Fresh settings leave recurring startup greetings disabled; the older `intro_every_launch` preference is migrated only when the user explicitly enabled it. The setup guide links directly to the official AI Studio key page. The `open_app` fix now removes polite command words while translating the recognized display name back to the same platform launcher target. Two older graphics tests were updated because their former three-button/manual-only expectations conflicted with the newer regression contract for auto mode; the three actual quality profiles remain low, medium, and high.
 
 The final local run on Linux with Python 3.11.16, `JARVIS_QA_MODE=1`, and `JARVIS_QA_WORKSPACE=.qa-artifacts/f1-qa-workspace` produced **272 passed** with one upstream deprecation warning. `scripts/qa.py automated` reported **5 passed, 0 failed**; its three P2 audit findings are the existing broad exception handling, deprecated Gemini SDK imports, and hard-coded UI colors. Offscreen UI evidence was captured under ignored artifact `.qa-artifacts/20261001-213205/`. Legacy graphics settings that already stored a profile now migrate to manual mode so auto detection cannot overwrite the user's choice, and theme refresh keeps the Auto card selected when automatic mode is active. The workflow YAML was parsed locally and checked for the full-suite and isolated-workspace steps; the staged secret scan and whitespace checks passed. The GitHub workflow has not run because this branch remains local. PostgreSQL/Redis migration execution is therefore still a remote-CI check. Final test output: ignored local artifact `.qa-artifacts/f1-full-tests.log`.
+
+## F2 UI package extraction
+
+`ui.py` is now the `ui/` package. `ui/__init__.py` retains the historical `import ui` surface by proxying the implementation module, while `ui/facade.py` exposes `JarvisUI` and `_RootShim`. The compatibility implementation is `ui/_runtime.py`; it owns shared application constants and composes the split widgets. The package modules are:
+
+| Package/module | Responsibility |
+|---|---|
+| `ui/theme/` | Theme manager, color compatibility surface, and font setup |
+| `ui/conversation/` | Chat bubbles, focus dialogue, and subtitles |
+| `ui/tools/` | Tool progress, task queue, tool log, and mission control |
+| `ui/notifications/` | Toasts, popups, presence notifications |
+| `ui/hud/` | Orb/HUD canvas, metrics, activity visualization, graphs, and painting |
+| `ui/console/` | Log panel |
+| `ui/files/` | File drop zone and file display helpers |
+| `ui/overlays/` | Shared overlay behavior, setup, settings, identity and voice dialogs |
+| `ui/compact/` | Floating compact mode |
+| `ui/vision/` | Vision preview window |
+| `ui/windows/` | Main window startup, layout, settings, identity, onboarding, and interaction mixins |
+| `ui/first_run.py` | First-run narration and intro rendering/cache helpers |
+| `ui/facade.py` | Stable `JarvisUI` adapter over the composed Qt window |
+| `ui/_runtime.py` | Shared runtime definitions, Qt signals, composition, and compatibility globals |
+
+No widget redesign was intended in F2. Package discovery in `pyproject.toml`, compile targets in `scripts/qa.py`, source auditing in `core/qa_audit.py`, and the PyInstaller hidden-import list were updated to recognize the package. The legacy import and patching surface remains covered by the existing UI and `test_phase1_decoupling` regressions.
+
+F2 was checked on Linux/Python 3.11.16. The full suite returned **272 passed, 1 upstream deprecation warning**; `scripts/qa.py automated` returned **5 passed, 0 failed** with the same three P2 audit findings recorded in F1. `pip install --dry-run --no-deps .` succeeded. All Python files in `ui/` are below the 800-line cap (largest: `ui/hud/paint.py`, 751 lines). The offscreen widget probe matched the F1 probe exactly at the 1280×820 and 980×680 main-window sizes and the settings graphics view: control counts, accessible names, and measured dimensions were identical. Evidence is local/ignored at `.qa-artifacts/20261001-220553/`; `test_phase1_decoupling` ran as part of the full suite. The source tree was compiled with `python -m compileall -q ui`. Remote GitHub CI and packaging on Windows/macOS remain unverified.
