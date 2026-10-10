@@ -35,6 +35,13 @@ class ActionHelperTests(unittest.TestCase):
     def test_open_app_normalization_removes_polite_noise(self):
         self.assertEqual(open_app._normalize("Please open Google Chrome"), "Google Chrome")
 
+    def test_open_app_keeps_platform_launch_target_for_normalized_name(self):
+        launcher = MagicMock(return_value=True)
+        with patch.object(open_app, "_SYSTEM", "Linux"), \
+             patch.dict(open_app._OS_LAUNCHERS, {"Linux": launcher}):
+            self.assertIn("Opened", open_app.open_app({"app_name": "Please open Google Chrome"}))
+        launcher.assert_called_once_with("google-chrome")
+
     def test_successful_macos_direct_launch_has_no_artificial_post_wait(self):
         completed = MagicMock(returncode=0)
         with (

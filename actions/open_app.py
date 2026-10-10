@@ -1,7 +1,10 @@
 import time
 import subprocess
 import platform
+import re
 import shutil
+import os
+from urllib.parse import urlsplit
 
 try:
     import psutil
@@ -66,7 +69,18 @@ _APP_ALIASES: dict[str, dict[str, str]] = {
 
 
 def _normalize(raw: str) -> str:
-    key = raw.lower().strip()
+    cleaned = re.sub(
+        r"^(?:please\s+)?(?:open|launch|start|run)\s+",
+        "",
+        str(raw or "").strip(),
+        flags=re.IGNORECASE,
+    )
+    key = cleaned.lower().strip()
+
+    # Keep the recognized application name readable here; open_app resolves
+    # this canonical name back to the same platform-specific launch target.
+    if key in {"chrome", "google chrome"}:
+        return "Google Chrome"
 
     if key in _APP_ALIASES:
         return _APP_ALIASES[key].get(_SYSTEM, raw)
@@ -78,32 +92,58 @@ def _normalize(raw: str) -> str:
     return raw  
 
 def _launch_windows(app_name: str) -> bool:
+    target = str(app_name or "").strip()
+    if not target or any(char in target for char in ("\r", "\n", "\0")):
+        return False
 
-    if shutil.which(app_name) or shutil.which(app_name.split(".")[0]):
+    is_windows_path = bool(re.match(r"^[A-Za-z]:[\\/]", target))
+    if not is_windows_path:
+        parsed = urlsplit(target)
+        if parsed.scheme:
+            if parsed.scheme.lower() not in {"http", "https", "mailto", "ms-settings"}:
+                return False
+            if parsed.scheme.lower() in {"http", "https"} and not parsed.netloc:
+                return False
+            startfile = getattr(os, "startfile", None)
+            if not callable(startfile):
+                return False
+            try:
+                startfile(target)
+                return True
+            except OSError as exc:
+                print(f"[open_app] URI handler failed: {exc}")
+                return False
+
+    binary = shutil.which(target) or shutil.which(target.split(".")[0])
+    if binary:
         try:
-            subprocess.Popen(
-                app_name,
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            if binary.lower().endswith((".cmd", ".bat")):
+                startfile = getattr(os, "startfile", None)
+                if not callable(startfile):
+                    return False
+                startfile(binary)
+            else:
+                subprocess.Popen(
+                    [binary],
+                    shell=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             return True
         except Exception as e:
             print(f"[open_app] subprocess failed: {e}")
 
-    if ":" in app_name:
-        try:
-            subprocess.Popen(f"start {app_name}", shell=True)
-            return True
-        except Exception:
-            pass
+    # Keep Start-menu search limited to application names, never URLs, paths,
+    # shell metacharacters, or control text.
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._+-]{0,79}", target):
+        return False
 
     try:
         import pyautogui
         pyautogui.PAUSE = 0.1
         pyautogui.press("win")
         time.sleep(0.7)
-        pyautogui.write(app_name, interval=0.05)
+        pyautogui.write(target, interval=0.05)
         time.sleep(0.9)
         pyautogui.press("enter")
         time.sleep(2.5)
@@ -231,13 +271,14 @@ def open_app(
         return f"Unsupported operating system: {_SYSTEM}"
 
     normalized = _normalize(app_name)
-    print(f"[open_app] Launching: '{app_name}' → '{normalized}' ({_SYSTEM})")
+    launch_target = _APP_ALIASES.get(normalized.lower(), {}).get(_SYSTEM, normalized)
+    print(f"[open_app] Launching: '{app_name}' → '{launch_target}' ({_SYSTEM})")
 
     if player:
         player.write_log(f"[open_app] {app_name}")
 
     try:
-        if launcher(normalized):
+        if launcher(launch_target):
             return f"Opened {app_name}."
         if normalized.lower() != app_name.lower():
             if launcher(app_name):

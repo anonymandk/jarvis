@@ -4,13 +4,13 @@ import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ARGUS | Command Interface",
-  description: "A focused voice and text interface for ARGUS.",
+  title: "ARGUS | Interface de comando",
+  description: "Interface direta de voz e texto para o ARGUS.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" data-theme="arc_reactor">
       <body>{children}</body>
     </html>
   );

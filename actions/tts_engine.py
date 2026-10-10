@@ -8,27 +8,15 @@ from typing import Callable
 
 import numpy as np
 import sounddevice as sd
+from core.voice_catalog import (
+    DEFAULT_PROVIDER,
+    DEFAULT_VOICE_ID,
+    EXTERNAL_PROVIDERS,
+    PROVIDER_TUTORIAL,
+    PROVIDER_VOICES,
+)
 
 RECEIVE_SAMPLE_RATE = 24000
-
-PROVIDER_VOICES: dict[str, list[tuple[str, str]]] = {
-    "gemini": [
-        ("Puck",          "puck"),
-        ("Charon",        "charon"),
-        ("Kore",          "kore"),
-        ("Fenrir",        "fenrir"),
-        ("Aoede",         "aoede"),
-        ("Leda",          "leda"),
-        ("Orus",          "orus"),
-        ("Schedar",       "schedar"),
-        ("Zubenelgenubi", "zubenelgenubi"),
-    ],
-}
-
-EXTERNAL_PROVIDERS = set()
-DEFAULT_PROVIDER = "gemini"
-DEFAULT_VOICE_ID = "orus"
-PROVIDER_TUTORIAL: dict[str, dict] = {}
 
 
 def _mp3_bytes_to_pcm(mp3_bytes: bytes) -> np.ndarray:

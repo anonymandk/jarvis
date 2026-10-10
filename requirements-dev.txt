@@ -1,0 +1,3 @@
+# Full development/CI profile: both runtime surfaces plus test tooling.
+-r requirements.txt
+pytest>=8,<9

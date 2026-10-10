@@ -5,11 +5,6 @@ import threading
 import json
 import sys
 import traceback
-import logging
-import random
-
-from observability.logging import setup_logging
-from observability.metrics import metrics, Timer
 from pathlib import Path
 
 import sounddevice as sd
@@ -20,24 +15,16 @@ from core.argus_client import ArgusClient
 from memory.memory_manager import (
     load_memory, update_memory, format_memory_for_prompt,
 )
-from config.settings import get_settings
+import hashlib
 import importlib
 import time
 
 from core.live_model import pick_live_model
-from audio import create_audio_backend
-from audio.base import AudioInterface
-from llm_providers import (
-    BaseLLM,
-    LLMConfig,
-    LLMEvent,
-    LLMEventType,
-    ToolCall,
-    ToolResult,
-    create_llm_provider,
+from core.tool_approval import (
+    ToolApprovalManager,
+    draft_fingerprint,
+    explicit_message_request_matches,
 )
-
-logger = logging.getLogger("argus")
 
 
 def _lazy_action(module_name: str, attribute: str):
@@ -98,17 +85,17 @@ BASE_DIR        = get_base_dir()
 _load_dotenv()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 PROMPT_PATH     = BASE_DIR / "core" / "prompt.txt"
-get_settings().audio.channels            = 1
-get_settings().audio.send_sample_rate    = 16000
+LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+CHANNELS            = 1
+SEND_SAMPLE_RATE    = 16000
 SUPPORTED_VOICE_NAMES = {
     "puck", "charon", "kore", "fenrir", "aoede",
     "leda", "orus", "schedar", "zubenelgenubi"
 }
 DEFAULT_VOICE_NAME   = "puck"
 
-get_settings().audio.receive_sample_rate = 24000
-get_settings().audio.chunk_size          = 1024
-get_settings().audio.vad_silence_ms = 200
+RECEIVE_SAMPLE_RATE = 24000
+CHUNK_SIZE          = 1024
 LIVE_VAD_SILENCE_MS = 200
 STARTUP_CLAPS_REQUIRED = 2
 STARTUP_CLAP_MAX_GAP_SECONDS = 4.0
@@ -163,25 +150,6 @@ def _live_reconnect_delay(attempt: int) -> float:
     return min(30.0, float(2 ** max(0, int(attempt) - 1)))
 
 
-def _compute_jitter_delay(
-    base_delay_s: float,
-    jitter_ratio: float,
-    *,
-    rand_fn=None,
-) -> float:
-    """Apply jitter to a base delay.
-
-    rand_fn is injectable for tests; if omitted it uses random.random.
-    """
-    if jitter_ratio <= 0:
-        return float(base_delay_s)
-    if rand_fn is None:
-        rand_fn = random.random
-    # Convert [0,1) to (-1, +1)
-    jitter = (float(rand_fn()) * 2.0 - 1.0) * float(jitter_ratio) * float(base_delay_s)
-    return max(0.0, float(base_delay_s) + jitter)
-
-
 def _live_response_audio_bytes(response) -> bytes | None:
     server_content = getattr(response, "server_content", None)
     model_turn = getattr(server_content, "model_turn", None)
@@ -202,14 +170,14 @@ def wait_for_startup_claps(
 ) -> bool:
     """Hold startup until two distinct claps are heard by the default microphone."""
     if os.environ.get("ARGUS_SKIP_CLAP_GATE", "").strip().lower() in {"1", "true", "yes", "on"}:
-        logger.info("[ARGUS] 👏 Startup clap gate bypassed (ARGUS_SKIP_CLAP_GATE).")
+        print("[ARGUS] 👏 Startup clap gate bypassed (ARGUS_SKIP_CLAP_GATE).")
         return True
     # Some macOS/AUHAL configurations expose a nominal input device but reject
     # every PortAudio operation (PaErrorCode -9986). Avoid repeatedly starting
     # a failing Core Audio stream; users with a working mic can opt in.
     if sys.platform == "darwin" and stream_factory is None and os.environ.get("ARGUS_ENABLE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-        logger.info("[ARGUS] ⚠️ macOS microphone gate disabled for this audio configuration.")
-        logger.info("[ARGUS] Continuing without clap startup. Set ARGUS_ENABLE_CLAP_GATE=1 to force it.")
+        print("[ARGUS] ⚠️ macOS microphone gate disabled for this audio configuration.")
+        print("[ARGUS] Continuing without clap startup. Set ARGUS_ENABLE_CLAP_GATE=1 to force it.")
         return True
 
     required = max(1, int(required))
@@ -217,7 +185,7 @@ def wait_for_startup_claps(
     try:
         import numpy as np
     except ImportError:
-        logger.info("[ARGUS] ❌ Startup clap gate needs numpy. Set ARGUS_SKIP_CLAP_GATE=1 to bypass.")
+        print("[ARGUS] ❌ Startup clap gate needs numpy. Set ARGUS_SKIP_CLAP_GATE=1 to bypass.")
         return False
 
     clap_times: list[float] = []
@@ -233,7 +201,7 @@ def wait_for_startup_claps(
     def callback(indata, frames, time_info, status):
         nonlocal last_clap_at, noise_floor, clap_times
         if status:
-            logger.info(f"[ARGUS] ⚠️ Clap mic: {status}")
+            print(f"[ARGUS] ⚠️ Clap mic: {status}")
         samples = np.asarray(indata, dtype=np.float32).reshape(-1)
         if samples.size == 0:
             return
@@ -264,15 +232,15 @@ def wait_for_startup_claps(
             clap_times = []
         clap_times.append(now)
         last_clap_at = now
-        logger.info(f"[ARGUS] 👏 Clap {len(clap_times)}/{required} detected")
+        print(f"[ARGUS] 👏 Clap {len(clap_times)}/{required} detected")
         if len(clap_times) >= required:
             finished.set()
 
-    logger.info(f"[ARGUS] 👏 Waiting for {required} claps to power up...")
+    print(f"[ARGUS] 👏 Waiting for {required} claps to power up...")
     # PortAudio on macOS commonly rejects 16 kHz even when the microphone is
     # available (PaErrorCode -9986). Prefer the device's native rate, then
     # retry standard rates before reporting that the microphone is unavailable.
-    sample_rates = [get_settings().audio.send_sample_rate, 44100, 48000]
+    sample_rates = [SEND_SAMPLE_RATE, 44100, 48000]
     input_device = None
     try:
         if stream_factory is sd.InputStream:
@@ -283,9 +251,9 @@ def wait_for_startup_claps(
                 except (TypeError, IndexError, ValueError):
                     input_index = -1
                 if input_index < 0:
-                    logger.info("[ARGUS] ⚠️ macOS reports no default microphone device.")
+                    print("[ARGUS] ⚠️ macOS reports no default microphone device.")
                     if os.environ.get("ARGUS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-                        logger.info("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+                        print("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
                         return True
                     raise RuntimeError("no default microphone device")
                 input_device = input_index
@@ -308,13 +276,13 @@ def wait_for_startup_claps(
                     sd.check_input_settings(
                         device=input_device,
                         samplerate=sample_rate,
-                        channels=get_settings().audio.channels,
+                        channels=CHANNELS,
                         dtype="float32",
                     )
                 with stream_factory(
                     samplerate=sample_rate,
                     device=input_device,
-                    channels=get_settings().audio.channels,
+                    channels=CHANNELS,
                     dtype="float32",
                     blocksize=0,
                     latency="high",
@@ -322,7 +290,7 @@ def wait_for_startup_claps(
                 ):
                     while not finished.wait(0.05):
                         if timeout is not None and time.monotonic() - started_at >= timeout:
-                            logger.info("[ARGUS] ⏱️ Startup clap gate timed out.")
+                            print("[ARGUS] ⏱️ Startup clap gate timed out.")
                             return False
                 break
             except Exception as exc:
@@ -332,27 +300,26 @@ def wait_for_startup_claps(
         else:
             raise last_error or RuntimeError("no compatible microphone sample rate")
     except KeyboardInterrupt:
-        logger.info("\n[ARGUS] Startup cancelled.")
+        print("\n[ARGUS] Startup cancelled.")
         return False
     except Exception as exc:
-        logger.info(f"[ARGUS] ❌ Startup clap microphone unavailable: {exc}")
+        print(f"[ARGUS] ❌ Startup clap microphone unavailable: {exc}")
         if os.environ.get("ARGUS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-            logger.info("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
-            logger.info("[ARGUS] Restore microphone access to use voice input.")
+            print("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+            print("[ARGUS] Restore microphone access to use voice input.")
             return True
-        logger.info("[ARGUS] Clap gate required. Set ARGUS_SKIP_CLAP_GATE=1 to bypass it.")
+        print("[ARGUS] Clap gate required. Set ARGUS_SKIP_CLAP_GATE=1 to bypass it.")
         return False
 
-    logger.info("[ARGUS] ⚡ Two claps detected. Powering up...")
+    print("[ARGUS] ⚡ Two claps detected. Powering up...")
     return True
 
 def _get_api_key() -> str:
-    """Get Gemini API key from settings (env or config)."""
-    settings = get_settings()
-    key = settings.llm.gemini_api_key
-    if not key:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable not set. Please set it to your Gemini API key.")
-    return key
+    return api_key
+
 
 def _normalize_voice_name(voice_name: str | None) -> str:
     if not voice_name:
@@ -372,8 +339,15 @@ def _is_unsupported_voice_error(exc: Exception) -> bool:
 
 
 def _load_voice_name() -> str:
-    """Get voice name from settings (env or config)."""
-    return get_settings().voice.name or DEFAULT_VOICE_NAME
+    voice = os.environ.get("GEMINI_VOICE_NAME")
+    if voice:
+        return _normalize_voice_name(voice)
+    try:
+        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return _normalize_voice_name(json.load(f).get("voice_name"))
+    except Exception:
+        return DEFAULT_VOICE_NAME
+
 
 def _load_system_prompt() -> str:
     try:
@@ -397,6 +371,737 @@ def _clean_transcript(text: str) -> str:
     text = re.sub(r"[\x00-\x08\x0b-\x1f]", "", text)
     return text.strip()
 
+TOOL_DECLARATIONS = [
+    {
+        "name": "open_app",
+        "description": (
+            "Opens any application on the computer. "
+            "Use this whenever the user asks to open, launch, or start any app, "
+            "website, or program. Always call this tool — never just say you opened it."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "app_name": {
+                    "type": "STRING",
+                    "description": "Exact name of the application (e.g. 'WhatsApp', 'Chrome', 'Spotify')"
+                }
+            },
+            "required": ["app_name"]
+        }
+    },
+    {
+        "name": "web_search",
+        "description": "Searches the web for any information.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query":  {"type": "STRING", "description": "Search query"},
+                "mode":   {"type": "STRING", "description": "search (default) or compare"},
+                "items":  {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Items to compare"},
+                "aspect": {"type": "STRING", "description": "price | specs | reviews"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "weather_report",
+        "description": "Gives the weather report to user",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "city": {"type": "STRING", "description": "City name"}
+            },
+            "required": ["city"]
+        }
+    },
+    {
+        "name": "check_messages",
+        "description": (
+            "Reads the current Instagram or Apple Messages conversation and optionally searches Contacts. "
+            "Use this before drafting a reply or when the user asks about recent messages."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "platform": {"type": "STRING", "description": "all | Instagram | iMessage | Contacts. Default: all."},
+                "include_contacts": {"type": "BOOLEAN", "description": "Also search the user's Contacts."},
+                "contact_query": {"type": "STRING", "description": "Optional spoken contact name to match."},
+                "max_messages": {"type": "INTEGER", "description": "Maximum current-chat lines to inspect. Default: 30."}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "prepare_message_reply",
+        "description": (
+            "Creates an approval-gated message draft, approves the current pending draft, or cancels it. "
+            "Never approve unless the user explicitly confirms the exact pending draft."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "enum": ["prepare", "approve", "cancel"], "description": "Draft lifecycle action."},
+                "platform": {"type": "STRING", "description": "Instagram, iMessage, WhatsApp, Telegram, or another supported platform."},
+                "receiver": {"type": "STRING", "description": "Recipient name. Optional for the currently open chat."},
+                "message_text": {"type": "STRING", "description": "Exact draft text, required for prepare."}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "send_message",
+        "description": (
+            "Sends a user-authored message through iMessage, WhatsApp, Telegram, Instagram, Discord, or the current chat. "
+            "For Instagram, the first call prepares a visible draft; use action=approve only after explicit user confirmation."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":       {"type": "STRING", "enum": ["send", "approve", "cancel"], "description": "Default: send. Approve/cancel operates on the pending draft."},
+                "receiver":     {"type": "STRING", "description": "Recipient contact name. Optional for current/focused chats and approval actions."},
+                "message_text": {"type": "STRING", "description": "Exact message content. Required for send."},
+                "platform":     {"type": "STRING", "description": "iMessage, WhatsApp, Telegram, Instagram, Discord, or current/focused."}
+            },
+            "required": ["platform"]
+        }
+    },
+    {
+        "name": "email_control",
+        "description": (
+            "Connects Gmail through Google OAuth, checks connection status, reads/searches Gmail, and prepares email. "
+            "Gmail is the default provider; Apple Mail remains an optional macOS fallback. "
+            "For Gmail, prepare opens a visible compose window and types To, Cc/Bcc, Subject, and Body in sequence. "
+            "Every outgoing email is approval-gated: first call action=prepare, then call action=approve "
+            "only after the user explicitly confirms the exact pending recipient, subject, and body."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "enum": ["connect", "status", "disconnect", "inbox", "unread", "search", "read", "prepare", "approve", "cancel"],
+                    "description": "Email operation."
+                },
+                "provider": {
+                    "type": "STRING",
+                    "enum": ["gmail", "apple_mail", "default"],
+                    "description": "Email provider. Default: gmail."
+                },
+                "browser": {
+                    "type": "STRING",
+                    "description": "Browser for the visible Gmail compose window. Default: chrome."
+                },
+                "credentials_path": {
+                    "type": "STRING",
+                    "description": "Path to a Google Desktop OAuth client JSON file, used only for connect."
+                },
+                "limit": {"type": "INTEGER", "description": "Maximum inbox/search results, 1-30."},
+                "query": {"type": "STRING", "description": "Sender or subject text for search."},
+                "message_id": {"type": "STRING", "description": "Message ID returned by inbox/search, required for read."},
+                "to": {"type": "STRING", "description": "Recipient email address or comma-separated addresses."},
+                "cc": {"type": "STRING", "description": "Optional Cc addresses."},
+                "bcc": {"type": "STRING", "description": "Optional Bcc addresses."},
+                "subject": {"type": "STRING", "description": "Exact email subject for prepare."},
+                "body": {"type": "STRING", "description": "Exact email body for prepare."}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "reminder",
+        "description": "Sets a timed reminder using Task Scheduler.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "date":    {"type": "STRING", "description": "Date in YYYY-MM-DD format"},
+                "time":    {"type": "STRING", "description": "Time in HH:MM format (24h)"},
+                "message": {"type": "STRING", "description": "Reminder message text"}
+            },
+            "required": ["date", "time", "message"]
+        }
+    },
+    {
+        "name": "youtube_video",
+        "description": (
+            "Controls YouTube. Use for: playing videos, summarizing a video's content, "
+            "getting video info, or showing trending videos."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "play | summarize | get_info | trending (default: play)"},
+                "query":  {"type": "STRING", "description": "Search query for play action"},
+                "save":   {"type": "BOOLEAN", "description": "Save summary to Notepad (summarize only)"},
+                "region": {"type": "STRING", "description": "Country code for trending e.g. TR, US"},
+                "url":    {"type": "STRING", "description": "Video URL for get_info action"},
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "media_control",
+        "description": (
+            "Controls music playback, primarily Spotify. Use when the user asks to play, resume, pause, "
+            "stop, toggle, skip, or go back in Spotify, Apple Music, YouTube Music, or the active media player. "
+            "Spotify is the default platform. Pass a song, artist, album, playlist, or Spotify link in query."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "enum": ["play", "pause", "stop", "toggle", "next", "previous", "play_query"],
+                    "description": "Playback command. Use play_query to find a specific song or other item."
+                },
+                "platform": {
+                    "type": "STRING",
+                    "enum": ["spotify", "apple_music", "youtube_music", "system"],
+                    "description": "Music platform. Default: spotify."
+                },
+                "query": {
+                    "type": "STRING",
+                    "description": "Song, artist, album, playlist, or Spotify link for play/play_query."
+                }
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "screen_process",
+        "description": (
+            "Captures and analyzes the screen or webcam image. "
+            "MUST be called when user asks what is on screen, what you see, "
+            "analyze my screen, look at camera, etc. "
+            "You have NO visual ability without this tool. "
+            "After calling this tool, stay SILENT — the vision module speaks directly."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "angle": {"type": "STRING", "description": "'screen' to capture display, 'camera' for webcam. Default: 'screen'"},
+                "text":  {"type": "STRING", "description": "The question or instruction about the captured image"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "computer_settings",
+        "description": (
+            "Controls the computer: volume, brightness, window management, keyboard shortcuts, "
+            "typing text on screen, closing apps, fullscreen, dark mode, WiFi, restart, shutdown, "
+            "scrolling, tab management, zoom, screenshots, lock screen, refresh/reload page. "
+            "Use for ANY single computer control command. NEVER route to agent_task."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "The action to perform"},
+                "description": {"type": "STRING", "description": "Natural language description of what to do. For restart or shutdown, explicitly say that the target is the computer (for example, 'restart my computer')."},
+                "value":       {"type": "STRING", "description": "Optional value: volume level, text to type, etc."}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "browser_control",
+        "description": (
+            "Controls any web browser. Use for: opening websites, searching the web, "
+            "clicking elements, filling forms, scrolling, screenshots, navigation, any web-based task. "
+            "Always pass the 'browser' parameter when the user specifies a browser (e.g. 'open in Edge', "
+            "'use Firefox', 'open Chrome'). Multiple browsers can run simultaneously."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "go_to | search | click | type | scroll | fill_form | smart_click | smart_type | get_text | get_url | press | new_tab | close_tab | screenshot | back | forward | reload | switch | list_browsers | close | close_all"},
+                "browser":     {"type": "STRING", "description": "Target browser: chrome | edge | firefox | opera | operagx | brave | vivaldi | safari. Omit to use the currently active browser."},
+                "url":         {"type": "STRING", "description": "URL for go_to / new_tab action"},
+                "query":       {"type": "STRING", "description": "Search query for search action"},
+                "engine":      {"type": "STRING", "description": "Search engine: google | bing | duckduckgo | yandex (default: google)"},
+                "selector":    {"type": "STRING", "description": "CSS selector for click/type"},
+                "text":        {"type": "STRING", "description": "Text to click or type"},
+                "description": {"type": "STRING", "description": "Element description for smart_click/smart_type"},
+                "direction":   {"type": "STRING", "description": "up | down for scroll"},
+                "amount":      {"type": "INTEGER", "description": "Scroll amount in pixels (default: 500)"},
+                "key":         {"type": "STRING", "description": "Key name for press action (e.g. Enter, Escape, F5)"},
+                "path":        {"type": "STRING", "description": "Save path for screenshot"},
+                "incognito":   {"type": "BOOLEAN", "description": "Open in private/incognito mode"},
+                "clear_first": {"type": "BOOLEAN", "description": "Clear field before typing (default: true)"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "file_controller",
+        "description": "Manages and opens local files and folders: open, list, create, delete, move, copy, rename, read, write, find, disk usage. Use action=open for a file path; do not use open_app for files.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "open | list | create_file | create_folder | delete | move | copy | rename | read | write | find | largest | disk_usage | organize_desktop | info"},
+                "path":        {"type": "STRING", "description": "File/folder path or shortcut: desktop, downloads, documents, home"},
+                "destination": {"type": "STRING", "description": "Destination path for move/copy"},
+                "new_name":    {"type": "STRING", "description": "New name for rename"},
+                "content":     {"type": "STRING", "description": "Content for create_file/write"},
+                "name":        {"type": "STRING", "description": "File name to search for"},
+                "extension":   {"type": "STRING", "description": "File extension to search (e.g. .pdf)"},
+                "count":       {"type": "INTEGER", "description": "Number of results for largest"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "desktop_control",
+        "description": "Controls the desktop: wallpaper, organize, clean, list, stats.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "wallpaper | wallpaper_url | organize | clean | list | stats | task"},
+                "path":   {"type": "STRING", "description": "Image path for wallpaper"},
+                "url":    {"type": "STRING", "description": "Image URL for wallpaper_url"},
+                "mode":   {"type": "STRING", "description": "by_type or by_date for organize"},
+                "task":   {"type": "STRING", "description": "Natural language desktop task"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "code_helper",
+        "description": "Writes, edits, explains, runs, or builds code files.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "write | edit | explain | run | build | auto (default: auto)"},
+                "description": {"type": "STRING", "description": "What the code should do or what change to make"},
+                "language":    {"type": "STRING", "description": "Programming language (default: python)"},
+                "output_path": {"type": "STRING", "description": "Where to save the file"},
+                "file_path":   {"type": "STRING", "description": "Path to existing file for edit/explain/run/build"},
+                "code":        {"type": "STRING", "description": "Raw code string for explain"},
+                "args":        {"type": "STRING", "description": "CLI arguments for run/build"},
+                "timeout":     {"type": "INTEGER", "description": "Execution timeout in seconds (default: 30)"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "dev_agent",
+        "description": "Builds complete multi-file projects from scratch: plans, writes files, installs deps, opens VSCode, runs and fixes errors. The dispatcher requires a separate explicit user confirmation before the project work begins; repeat the unchanged call only after that confirmation.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "description":  {"type": "STRING", "description": "What the project should do"},
+                "language":     {"type": "STRING", "description": "Programming language (default: python)"},
+                "project_name": {"type": "STRING", "description": "Optional project folder name"},
+                "timeout":      {"type": "INTEGER", "description": "Run timeout in seconds (default: 30)"},
+            },
+            "required": ["description"]
+        }
+    },
+    {
+        "name": "agent_task",
+        "description": (
+            "Executes complex multi-step tasks requiring multiple different tools. "
+            "Examples: 'research X and save to file', 'find and organize files'. "
+            "DO NOT use for single commands. NEVER use for Steam/Epic — use game_updater."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "goal":     {"type": "STRING", "description": "Complete description of what to accomplish"},
+                "priority": {"type": "STRING", "description": "low | normal | high (default: normal)"}
+            },
+            "required": ["goal"]
+        }
+    },
+    {
+        "name": "computer_control",
+        "description": "Direct computer control: type, click, hotkeys, scroll, move mouse, screenshots, find elements on screen. Every mutating action requires a separate explicit user confirmation; repeat the unchanged call only after confirmation. Screenshot, screen_find, and wait are observational actions.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "type | smart_type | click | double_click | right_click | hotkey | press | scroll | move | copy | paste | screenshot | wait | clear_field | focus_window | screen_find | screen_click | random_data | user_data"},
+                "text":        {"type": "STRING", "description": "Text to type or paste"},
+                "x":           {"type": "INTEGER", "description": "X coordinate"},
+                "y":           {"type": "INTEGER", "description": "Y coordinate"},
+                "keys":        {"type": "STRING", "description": "Key combination e.g. 'ctrl+c'"},
+                "key":         {"type": "STRING", "description": "Single key e.g. 'enter'"},
+                "direction":   {"type": "STRING", "description": "up | down | left | right"},
+                "amount":      {"type": "INTEGER", "description": "Scroll amount (default: 3)"},
+                "seconds":     {"type": "NUMBER",  "description": "Seconds to wait"},
+                "title":       {"type": "STRING",  "description": "Window title for focus_window"},
+                "description": {"type": "STRING",  "description": "Element description for screen_find/screen_click"},
+                "type":        {"type": "STRING",  "description": "Data type for random_data"},
+                "field":       {"type": "STRING",  "description": "Field for user_data: name|email|city"},
+                "clear_first": {"type": "BOOLEAN", "description": "Clear field before typing (default: true)"},
+                "path":        {"type": "STRING",  "description": "Save path for screenshot"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "game_updater",
+        "description": (
+            "THE ONLY tool for ANY Steam or Epic Games request. "
+            "Use for: installing, downloading, updating games, listing installed games, "
+            "checking download status, scheduling updates. "
+            "ALWAYS call directly for any Steam/Epic/game request. "
+            "NEVER use agent_task, browser_control, or web_search for Steam/Epic."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":    {"type": "STRING",  "description": "update | install | list | download_status | schedule | cancel_schedule | schedule_status (default: update)"},
+                "platform":  {"type": "STRING",  "description": "steam | epic | both (default: both)"},
+                "game_name": {"type": "STRING",  "description": "Game name (partial match supported)"},
+                "app_id":    {"type": "STRING",  "description": "Steam AppID for install (optional)"},
+                "hour":      {"type": "INTEGER", "description": "Hour for scheduled update 0-23 (default: 3)"},
+                "minute":    {"type": "INTEGER", "description": "Minute for scheduled update 0-59 (default: 0)"},
+                "shutdown_when_done": {"type": "BOOLEAN", "description": "Shut down PC when download finishes"},
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "flight_finder",
+        "description": "Searches Google Flights and speaks the best options.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "origin":      {"type": "STRING",  "description": "Departure city or airport code"},
+                "destination": {"type": "STRING",  "description": "Arrival city or airport code"},
+                "date":        {"type": "STRING",  "description": "Departure date (any format)"},
+                "return_date": {"type": "STRING",  "description": "Return date for round trips"},
+                "passengers":  {"type": "INTEGER", "description": "Number of passengers (default: 1)"},
+                "cabin":       {"type": "STRING",  "description": "economy | premium | business | first"},
+                "save":        {"type": "BOOLEAN", "description": "Save results to Notepad"},
+            },
+            "required": ["origin", "destination", "date"]
+        }
+    },
+    {
+        "name": "graphics_quality",
+        "description": "Changes ARGUS rendering quality between low, medium, and high.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "quality": {
+                    "type": "STRING",
+                    "enum": ["low", "medium", "high"],
+                    "description": "Rendering quality preset."
+                }
+            },
+            "required": ["quality"]
+        }
+    },
+    {
+        "name": "argus_ui_control",
+        "description": (
+            "Changes ARGUS's own interface. Use when the user asks to open or close the Command Center, "
+            "change the theme or graphics quality, open settings, enter compact mode, toggle fullscreen, or show shortcuts."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "enum": ["open_command_center", "close_command_center", "change_theme", "change_graphics_quality", "open_settings", "compact_mode", "fullscreen", "show_shortcuts"],
+                    "description": "The interface action to perform."
+                },
+                "theme": {
+                    "type": "STRING",
+                    "enum": ["arc_reactor", "stealth_red", "vibranium_purple", "nanotech_gold", "platinum"],
+                    "description": "Required for change_theme."
+                },
+                "graphics_quality": {
+                    "type": "STRING",
+                    "enum": ["low", "medium", "high"],
+                    "description": "Required for change_graphics_quality. Low favors performance, medium is balanced, and high enables full visual detail."
+                },
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "deep_research",
+        "description": (
+            "Runs rigorous, multi-query web research and keeps the report in volatile memory unless the user asks to save it. "
+            "Use when the user explicitly asks for deep, thorough, comprehensive, or source-backed research. "
+            "On the first call, ask whether the user wants a background status bar or visible browser research. "
+            "After completion, use this tool again to save the latest report or read it aloud."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "question": {
+                    "type": "STRING",
+                    "description": "The research question. Required on the initial ask call; optional when confirming a pending request."
+                },
+                "execution_mode": {
+                    "type": "STRING",
+                    "enum": ["ask", "background", "visible"],
+                    "description": "Always use ask initially. Background shows a labeled status bar; visible opens a controlled browser and visits sources."
+                },
+                "result_action": {
+                    "type": "STRING",
+                    "enum": ["none", "save_files", "save_desktop", "read_report"],
+                    "description": "Action for the latest completed in-memory report. Use only after the user chooses one of these options."
+                },
+                "depth": {
+                    "type": "STRING",
+                    "enum": ["quick", "standard", "deep"],
+                    "description": "Research breadth. Default: standard."
+                },
+                "focus_areas": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Optional angles, constraints, or subtopics to prioritize."
+                },
+                "max_sources": {
+                    "type": "INTEGER",
+                    "description": "Maximum verified source links to retain, from 5 to 50."
+                },
+                "output_path": {
+                    "type": "STRING",
+                    "description": "Optional explicit path used only with save_files or save_desktop. Research never saves automatically."
+                },
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "create_presentation",
+        "description": (
+            "Creates, edits, redesigns, or extends an editable Microsoft PowerPoint (.pptx) presentation. "
+            "Use this directly whenever the user asks to make a PowerPoint, presentation, "
+            "slide deck, pitch deck, briefing deck, or slideshow. Do not use code_helper, "
+            "file_processor, computer_control, or agent_task. First ask whether the user wants "
+            "a native 3D model, then ask whether they want to see the task or keep it in the background."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "topic": {
+                    "type": "STRING",
+                    "description": "Subject, goal, and important content instructions. Required on the initial ask; optional when confirming the pending run mode."
+                },
+                "execution_mode": {
+                    "type": "STRING",
+                    "enum": ["ask", "background", "visible"],
+                    "description": "Always use ask initially. Visible shows real build phases; background keeps a compact status indicator."
+                },
+                "mode": {
+                    "type": "STRING",
+                    "description": "auto | create | edit | redesign | extend. Default: auto."
+                },
+                "title": {
+                    "type": "STRING",
+                    "description": "Optional presentation title."
+                },
+                "audience": {
+                    "type": "STRING",
+                    "description": "Who will view the presentation, such as executives, investors, clients, or students."
+                },
+                "slide_count": {
+                    "type": "INTEGER",
+                    "description": "Final slide count from 3 to 50. Default: inferred or 8."
+                },
+                "tone": {
+                    "type": "STRING",
+                    "description": "Desired writing and visual tone, such as executive, persuasive, technical, or educational."
+                },
+                "theme": {
+                    "type": "STRING",
+                    "description": "Visual theme: argus_minimal | editorial | arc_reactor | executive | platinum. Default: argus_minimal."
+                },
+                "appearance": {
+                    "type": "STRING",
+                    "enum": ["auto", "light", "dark"],
+                    "description": "Overall slide appearance. Honor light or dark when requested; auto uses the restrained dark ARGUS style."
+                },
+                "transition": {
+                    "type": "STRING",
+                    "enum": ["morph", "fade", "none"],
+                    "description": "Native PowerPoint slide transition. Default: morph, with a fade fallback for older PowerPoint versions."
+                },
+                "source_file": {
+                    "type": "STRING",
+                    "description": "Backward-compatible single source path. Leave empty to use the uploaded file."
+                },
+                "source_files": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Source paths: PDF, Office files, data, text, images, audio, video, or PowerPoint."
+                },
+                "source_urls": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Specific source URLs supplied by the user."
+                },
+                "template_file": {
+                    "type": "STRING",
+                    "description": "Existing PPTX template or deck to preserve for edit/extend operations."
+                },
+                "model_source_file": {
+                    "type": "STRING",
+                    "description": "A PPTX used only as a native 3D model library. Its slides and text are not copied into the new presentation."
+                },
+                "use_native_3d": {
+                    "type": "BOOLEAN",
+                    "description": "The user's answer to the 3D-model question. Omit on the initial call unless the user already explicitly answered."
+                },
+                "three_d_mode": {
+                    "type": "STRING",
+                    "enum": ["ask", "yes", "no"],
+                    "description": "Use ask on the initial call unless the user already explicitly requested or rejected 3D."
+                },
+                "quality": {
+                    "type": "STRING",
+                    "description": "fast | quality | premium. Default: quality."
+                },
+                "language": {
+                    "type": "STRING",
+                    "description": "Optional output language; otherwise infer from the request."
+                },
+                "allow_web_research": {
+                    "type": "BOOLEAN",
+                    "description": "Use broader web research. Set true only after the user explicitly permits web search."
+                },
+                "export_pdf": {
+                    "type": "BOOLEAN",
+                    "description": "Also export a PDF when Microsoft PowerPoint is available. Default: true."
+                },
+                "include_speaker_notes": {
+                    "type": "BOOLEAN",
+                    "description": "Generate editable speaker notes. Default: false."
+                },
+                "output_path": {
+                    "type": "STRING",
+                    "description": "Optional .pptx output path or destination folder."
+                },
+                "open_after_create": {
+                    "type": "BOOLEAN",
+                    "description": "Open the finished PowerPoint after creation. Default: false."
+                },
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "task_status",
+        "description": "Checks or cancels background jobs, including presentation and deep-research jobs.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "get | all | cancel. Default: get."
+                },
+                "task_id": {
+                    "type": "STRING",
+                    "description": "Background task ID for get or cancel."
+                },
+            },
+            "required": []
+        }
+    },
+    {
+    "name": "file_processor",
+    "description": (
+        "Processes any file that the user has uploaded or dropped onto the interface. "
+        "Use this when the user refers to an uploaded file and wants an action on it. "
+        "Supports: images (describe/ocr/resize/compress/convert), "
+        "PDFs (summarize/extract_text/to_word), "
+        "Word docs & text files (summarize/fix/reformat/translate), "
+        "CSV/Excel (analyze/stats/filter/sort/convert), "
+        "JSON/XML (validate/format/analyze), "
+        "code files (explain/review/fix/optimize/run/document/test), "
+        "audio (transcribe/trim/convert/info), "
+        "video (trim/extract_audio/extract_frame/compress/transcribe/info), "
+        "archives (list/extract), "
+        "presentations (summarize/extract_text). "
+        "ALWAYS call this tool when a file has been uploaded and the user gives a command about it. "
+        "If the user's command is ambiguous, pick the most logical action for that file type."
+    ),
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "file_path": {
+                "type": "STRING",
+                "description": "Full path to the uploaded file. Leave empty to use the currently uploaded file."
+            },
+            "action": {
+                "type": "STRING",
+                "description": (
+                    "What to do with the file. Examples by type:\n"
+                    "image: describe | ocr | resize | compress | convert | info\n"
+                    "pdf: summarize | extract_text | to_word | info\n"
+                    "docx/txt: summarize | fix | reformat | translate_hint | word_count | to_bullet\n"
+                    "csv/excel: analyze | stats | filter | sort | convert | info\n"
+                    "json: validate | format | analyze | to_csv\n"
+                    "code: explain | review | fix | optimize | run | document | test\n"
+                    "audio: transcribe | trim | convert | info\n"
+                    "video: trim | extract_audio | extract_frame | compress | transcribe | info | convert\n"
+                    "archive: list | extract\n"
+                    "pptx: summarize | extract_text | analyze"
+                )
+            },
+            "instruction": {
+                "type": "STRING",
+                "description": "Free-form instruction if action doesn't cover it. E.g. 'translate this to Turkish', 'find all email addresses'"
+            },
+            "format": {
+                "type": "STRING",
+                "description": "Target format for conversion. E.g. 'mp3', 'pdf', 'csv', 'png'"
+            },
+            "width":     {"type": "INTEGER", "description": "Target width for image resize"},
+            "height":    {"type": "INTEGER", "description": "Target height for image resize"},
+            "scale":     {"type": "NUMBER",  "description": "Scale factor for image resize (e.g. 0.5)"},
+            "quality":   {"type": "INTEGER", "description": "Quality 1-100 for image/video compress"},
+            "start":     {"type": "STRING",  "description": "Start time for trim: seconds or HH:MM:SS"},
+            "end":       {"type": "STRING",  "description": "End time for trim: seconds or HH:MM:SS"},
+            "timestamp": {"type": "STRING",  "description": "Timestamp for video frame extraction HH:MM:SS"},
+            "column":    {"type": "STRING",  "description": "Column name for CSV filter/sort"},
+            "value":     {"type": "STRING",  "description": "Filter value for CSV filter"},
+            "condition": {"type": "STRING",  "description": "Filter condition: equals|contains|gt|lt"},
+            "ascending": {"type": "BOOLEAN", "description": "Sort order for CSV sort (default: true)"},
+            "save":      {"type": "BOOLEAN", "description": "Save result to file (default: true)"},
+            "destination": {"type": "STRING", "description": "Output folder for archive extract"},
+        },
+        "required": []
+    }
+},
+    {
+        "name": "save_memory",
+        "description": (
+            "Save an important personal fact about the user to long-term memory. "
+            "Call this silently whenever the user reveals something worth remembering: "
+            "name, age, city, job, preferences, hobbies, relationships, projects, or future plans. "
+            "Do NOT call for: weather, reminders, searches, or one-time commands. "
+            "Do NOT announce that you are saving — just call it silently. "
+            "Values must be in English regardless of the conversation language."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "category": {
+                    "type": "STRING",
+                    "description": (
+                        "identity — name, age, birthday, city, job, language, nationality | "
+                        "preferences — favorite food/color/music/film/game/sport, hobbies | "
+                        "projects — active projects, goals, things being built | "
+                        "relationships — friends, family, partner, colleagues | "
+                        "wishes — future plans, things to buy, travel dreams | "
+                        "notes — habits, schedule, anything else worth remembering"
+                    )
+                },
+                "key":   {"type": "STRING", "description": "Short snake_case key (e.g. name, favorite_food, sister_name)"},
+                "value": {"type": "STRING", "description": "Concise value in English (e.g. Fatih, pizza, older sister)"},
+            },
+            "required": ["category", "key", "value"]
+        }
+    },
+]
+
 # Tool names exposed by hosted clients. The names here are Gemini function
 # declaration names (which differ from a few implementation module names).
 CLOUD_SAFE_ACTIONS = frozenset({
@@ -409,57 +1114,25 @@ CLOUD_SAFE_ACTIONS = frozenset({
     "youtube_video",
 })
 
+LOCAL_MACHINE_ONLY_ACTIONS = frozenset({
+    "computer_control",
+    "open_app",
+    "file_controller",
+    "media_control",
+    "desktop_control",
+    "computer_settings",
+})
+
 
 def get_tool_declarations(*, cloud_safe: bool = False) -> list[dict]:
     """Return the Gemini tools available for the requested runtime."""
-    from tools.registry import registry as tool_registry
-
     if not cloud_safe:
-        return tool_registry.declarations(cloud_safe=False)
-
-    return tool_registry.declarations(
-        cloud_safe=True,
-        cloud_safe_action_names=set(CLOUD_SAFE_ACTIONS),
-    )
-
-
-# All tool names available in desktop mode (non-cloud-safe).
-ALL_TOOL_NAMES = frozenset({
-    "open_app",
-    "web_search",
-    "weather_report",
-    "check_messages",
-    "prepare_message_reply",
-    "send_message",
-    "email_control",
-    "reminder",
-    "youtube_video",
-    "media_control",
-    "screen_process",
-    "computer_settings",
-    "browser_control",
-    "file_controller",
-    "desktop_control",
-    "code_helper",
-    "dev_agent",
-    "agent_task",
-    "computer_control",
-    "game_updater",
-    "flight_finder",
-    "argus_ui_control",
-    "file_processor",
-    "create_presentation",
-    "deep_research",
-    "graphics_quality",
-    "task_status",
-    "save_memory",
-})
-
-# Tools that are only available in local (non-cloud) mode.
-LOCAL_MACHINE_ONLY_ACTIONS = ALL_TOOL_NAMES - CLOUD_SAFE_ACTIONS
-
-# Full tool declarations for desktop mode (backward compatibility with tests).
-TOOL_DECLARATIONS = get_tool_declarations(cloud_safe=False)
+        return list(TOOL_DECLARATIONS)
+    return [
+        declaration
+        for declaration in TOOL_DECLARATIONS
+        if declaration.get("name") in CLOUD_SAFE_ACTIONS
+    ]
 
 
 class ArgusLive:
@@ -472,8 +1145,6 @@ class ArgusLive:
         cloud_safe: bool = False,
         api_key: str | None = None,
         external_audio: bool = False,
-        audio_backend: AudioInterface | None = None,
-        llm_provider: BaseLLM | None = None,
     ):
         # Keep ``ui`` as a compatibility alias for desktop integrations that
         # already inspect ArgusLive.ui. The engine contract is ArgusClient.
@@ -483,7 +1154,7 @@ class ArgusLive:
         self.external_audio = bool(external_audio)
         self._api_key       = api_key.strip() if isinstance(api_key, str) else None
         self.tool_declarations = get_tool_declarations(cloud_safe=self.cloud_safe)
-        self.session        = None  # Legacy: kept for backward compatibility
+        self.session        = None
         self.audio_in_queue = None
         self.out_queue      = None
         self._loop          = None
@@ -505,23 +1176,24 @@ class ArgusLive:
         self._current_input_transcript = ""
         self._last_input_transcript = ""
         self._last_input_transcript_at = 0.0
+        self._approval_manager = ToolApprovalManager()
         self._pending_self_quit = False
         self._pending_self_quit_farewell_received = False
         self._self_quit_timer = None
         self._shutdown_requested = threading.Event()
         self._tour_active = False
 
-        # Audio backend (Phase 5)
-        self._audio_backend = audio_backend
-
-        # LLM Provider (Phase 6)
-        self._llm_provider = llm_provider
-        self._live_model_id: str | None = None
-
     def _on_text_command(self, text: str):
         if not self._loop or not self.session:
             return
         asyncio.run_coroutine_threadsafe(self.send_text(text), self._loop)
+
+    def _tool_approvals(self) -> ToolApprovalManager:
+        manager = getattr(self, "_approval_manager", None)
+        if manager is None:
+            manager = ToolApprovalManager()
+            self._approval_manager = manager
+        return manager
 
     async def send_text(self, text: str) -> bool:
         """Send a text turn from either the desktop callback or a web client."""
@@ -530,6 +1202,9 @@ class ArgusLive:
         self._current_input_transcript = str(text or "").strip()
         if not self._current_input_transcript:
             return False
+        approvals = self._tool_approvals()
+        approvals.begin_user_turn(self._current_input_transcript)
+        approvals.finish_user_turn(self._current_input_transcript)
         self._last_input_transcript = self._current_input_transcript
         self._last_input_transcript_at = time.monotonic()
         outgoing_text = self._current_input_transcript
@@ -558,30 +1233,6 @@ class ArgusLive:
             return False
         await self.out_queue.put({"data": data, "mime_type": mime_type})
         return True
-
-    def _send_audio_external(self, chunk: bytes, mime_type: str) -> None:
-        """Callback for external audio passthrough (e.g., web client)."""
-        if self._loop and self.client:
-            send_audio = getattr(self.client, "send_audio", None)
-            if callable(send_audio):
-                asyncio.run_coroutine_threadsafe(
-                    self._send_audio_to_client(chunk, mime_type),
-                    self._loop
-                )
-
-    async def _send_audio_to_client(self, chunk: bytes, mime_type: str) -> None:
-        """Send audio chunk to external client."""
-        send_audio = getattr(self.client, "send_audio", None)
-        if callable(send_audio):
-            send_audio(chunk, mime_type)
-
-    def _on_audio_input(self, data: bytes) -> None:
-        """Callback for audio input from microphone (called from sounddevice thread)."""
-        if self._loop and self.out_queue and not self._shutdown_requested.is_set():
-            self._loop.call_soon_threadsafe(
-                self.out_queue.put_nowait,
-                {"data": data, "mime_type": "audio/pcm"}
-            )
 
     def set_speaking(self, value: bool):
         with self._speaking_lock:
@@ -703,7 +1354,7 @@ class ArgusLive:
             if out_queue is not None:
                 out_queue.put_nowait(None)
         except Exception as exc:
-            logger.info(f"[ARGUS] ⚠️ Shutdown session close failed: {exc}")
+            print(f"[ARGUS] ⚠️ Shutdown session close failed: {exc}")
 
     def set_tour_active(self, active: bool) -> None:
         """Track whether the desktop introduction temporarily owns the UI."""
@@ -737,6 +1388,93 @@ class ArgusLive:
         self._queue_self_quit_after_farewell()
         return f'Shutdown queued. Say exactly: "{SELF_QUIT_GOODBYE}"'
 
+    @staticmethod
+    def _pending_draft_fingerprint(kind: str) -> str:
+        if kind == "email":
+            module = importlib.import_module("actions.email_control")
+            draft = module._get_pending_email()
+        else:
+            module = importlib.import_module("actions.send_message")
+            draft = module._get_pending_message()
+        if not draft:
+            return ""
+        # Exclude timestamps and retain only fields that define the outgoing content.
+        keys = (
+            ("provider", "delivery", "to", "cc", "bcc", "subject", "body")
+            if kind == "email"
+            else ("platform", "receiver", "message_text")
+        )
+        content = {key: str(draft.get(key, "") or "") for key in keys}
+        return draft_fingerprint(content)
+
+    def _tool_approval_block(self, name: str, args: dict) -> str | None:
+        """Enforce later-turn approval for sensitive dispatches."""
+        manager = self._tool_approvals()
+        action = str(args.get("action") or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+        if name == "computer_control" and action not in {"screenshot", "screen_find", "wait"}:
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        if name == "dev_agent":
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        if name == "computer_settings":
+            description = str(args.get("description") or "").casefold()
+            dangerous = action in {"restart", "shutdown", "reboot", "poweroff", "power_off", "restart_computer", "shutdown_computer"}
+            if not dangerous and re.search(r"\b(restart|reboot|shutdown|shut down|power off|turn off)\b", description):
+                dangerous = True
+            if dangerous:
+                allowed, result = manager.request_operation(name, args)
+                if not allowed:
+                    return result
+                args["confirmed"] = "yes"
+                if action in {"reboot", "restart_computer"}:
+                    args["action"] = "restart"
+                elif action in {"poweroff", "power_off", "shutdown_computer"}:
+                    args["action"] = "shutdown"
+
+        if name == "email_control" and action == "approve":
+            fingerprint = self._pending_draft_fingerprint("email")
+            if not fingerprint:
+                return "There is no code-verified pending email approval. Nothing was sent."
+            allowed, result = manager.approve_draft("email", fingerprint)
+            return None if allowed else result
+
+        if (
+            name == "prepare_message_reply" and action in {"approve", "confirm", "send"}
+        ) or (
+            name == "send_message" and action in {"approve", "confirm"}
+        ):
+            fingerprint = self._pending_draft_fingerprint("message")
+            if not fingerprint:
+                return "There is no code-verified pending message approval. Nothing was sent."
+            allowed, result = manager.approve_draft("message", fingerprint)
+            return None if allowed else result
+
+        if name == "send_message" and action not in {"approve", "confirm", "cancel", "discard", "deny"}:
+            if manager.turn_complete and explicit_message_request_matches(manager.transcript, args):
+                return None
+            allowed, result = manager.request_operation(name, args)
+            return None if allowed else result
+
+        return None
+
+    def _record_pending_draft(self, name: str, args: dict, result: str) -> None:
+        text = str(result or "")
+        kind = ""
+        if name == "email_control" and "EMAIL_APPROVAL_REQUIRED|" in text:
+            kind = "email"
+        elif name == "prepare_message_reply" and "MESSAGE_APPROVAL_REQUIRED|" in text:
+            kind = "message"
+        elif name == "send_message" and "draft typed" in text.casefold():
+            kind = "message"
+        if kind:
+            fingerprint = self._pending_draft_fingerprint(kind)
+            if fingerprint:
+                self._tool_approvals().register_draft(kind, fingerprint)
+
     def update_voice(self, voice_name: str):
         self.voice_name = _normalize_voice_name(voice_name)
         self.ui.write_log(f"SYS: Voice change requested: {self.voice_name}")
@@ -748,7 +1486,7 @@ class ArgusLive:
             try:
                 asyncio.run_coroutine_threadsafe(self.session.close(), self._loop)
             except Exception as e:
-                logger.info(f"[ARGUS] ⚠️ Could not close session after voice change: {e}")
+                print(f"[ARGUS] ⚠️ Could not close session after voice change: {e}")
 
     def _get_current_voice(self) -> str:
         if getattr(self, "voice_name", None):
@@ -783,7 +1521,7 @@ class ArgusLive:
                 turn_complete=True,
             )
         except Exception as e:
-            logger.info(f"[ARGUS] ⚠️ Greeting failed: {e}")
+            print(f"[ARGUS] ⚠️ Greeting failed: {e}")
 
     def _build_config(self) -> types.LiveConnectConfig:
         from datetime import datetime
@@ -814,14 +1552,14 @@ class ArgusLive:
                 "function_declarations": getattr(
                     self,
                     "tool_declarations",
-                    [],
+                    TOOL_DECLARATIONS,
                 )
             }],
             realtime_input_config=types.RealtimeInputConfig(
                 automatic_activity_detection=types.AutomaticActivityDetection(
                     start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
                     end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
-                    silence_duration_ms=get_settings().audio.vad_silence_ms,
+                    silence_duration_ms=LIVE_VAD_SILENCE_MS,
                 )
             ),
             thinking_config=types.ThinkingConfig(thinking_budget=0),
@@ -835,87 +1573,288 @@ class ArgusLive:
             ),
         )
 
-async def _execute_tool(self, fc) -> types.FunctionResponse:
-    name = fc.name
-    args = dict(fc.args or {})
+    async def _execute_tool(self, fc) -> types.FunctionResponse:
+        name = fc.name
+        args = dict(fc.args or {})
 
-    if getattr(self, "cloud_safe", False) and name not in CLOUD_SAFE_ACTIONS:
-        return types.FunctionResponse(
-            id=fc.id,
-            name=name,
-            response={
-                "result": (
-                    f"Tool '{name}' is unavailable in cloud-safe mode."
+        if getattr(self, "cloud_safe", False) and name not in CLOUD_SAFE_ACTIONS:
+            return types.FunctionResponse(
+                id=fc.id,
+                name=name,
+                response={
+                    "result": (
+                        f"Tool '{name}' is unavailable in cloud-safe mode."
+                    )
+                },
+            )
+
+        if getattr(self.ui, "operational_ready", True) is False:
+            return types.FunctionResponse(
+                id=fc.id,
+                name=name,
+                response={"result": "Startup sequence active. Try this action again when ARGUS is ready."},
+            )
+
+        from core.qa_mode import guard_tool_call, qa_block_message
+
+        qa_decision = guard_tool_call(name, args)
+        if not qa_decision.allowed:
+            return types.FunctionResponse(
+                id=fc.id,
+                name=name,
+                response={"result": qa_block_message(qa_decision)},
+            )
+
+        print(f"[ARGUS] 🔧 {name}  {args}")
+        self.ui.set_state("THINKING")
+
+        intercepted = self._intercept_ui_tool_call(name, args)
+        if intercepted is not None:
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name, response={"result": intercepted}
+            )
+
+        approval_block = self._tool_approval_block(name, args)
+        if approval_block is not None:
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name, response={"result": approval_block}
+            )
+
+        if name == "save_memory":
+            category = args.get("category", "notes")
+            key      = args.get("key", "")
+            value    = args.get("value", "")
+            if key and value:
+                update_memory({category: {key: {"value": value}}})
+                print(f"[Memory] 💾 save_memory: {category}/{key} = {value}")
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name,
+                response={"result": "ok", "silent": True}
+            )
+
+        result = "Done."
+
+        try:
+            if name == "open_app":
+                r = await asyncio.to_thread(lambda: open_app(parameters=args, response=None, player=self.ui))
+                result = r or f"Opened {args.get('app_name')}."
+
+            elif name == "weather_report":
+                r = await asyncio.to_thread(lambda: weather_action(parameters=args, player=self.ui))
+                result = r or "Weather delivered."
+
+            elif name == "browser_control":
+                r = await asyncio.to_thread(lambda: browser_control(parameters=args, player=self.ui))
+                result = r or "Done."
+
+            elif name == "file_controller":
+                if (
+                    args.get("action", "").lower() == "open"
+                    and not args.get("path")
+                    and not args.get("name")
+                ):
+                    current_file = getattr(self.ui, "current_file", None)
+                    if current_file:
+                        args["path"] = current_file
+                r = await asyncio.to_thread(lambda: file_controller(parameters=args, player=self.ui))
+                result = r or "Done."
+
+            elif name == "check_messages":
+                r = await asyncio.to_thread(
+                    lambda: check_messages(parameters=args, response=None, player=self.ui, session_memory=None),
                 )
-            },
-        )
+                result = r or "No readable messages were found."
 
-    if getattr(self.ui, "operational_ready", True) is False:
+            elif name == "prepare_message_reply":
+                r = await asyncio.to_thread(
+                    lambda: prepare_message_reply(parameters=args, response=None, player=self.ui, session_memory=None),
+                )
+                result = r or "The message draft could not be prepared."
+
+            elif name == "send_message":
+                r = await asyncio.to_thread(lambda: send_message(parameters=args, response=None, player=self.ui, session_memory=None))
+                result = r or f"Message sent to {args.get('receiver')}."
+
+            elif name == "email_control":
+                if args.get("action", "").lower() == "connect" and not args.get("credentials_path"):
+                    current_file = getattr(self.ui, "current_file", None)
+                    if current_file and Path(str(current_file)).suffix.lower() == ".json":
+                        args["credentials_path"] = current_file
+                r = await asyncio.to_thread(lambda: email_control(parameters=args, response=None, player=self.ui, session_memory=None))
+                result = r or "Email action completed."
+
+            elif name == "reminder":
+                r = await asyncio.to_thread(lambda: reminder(parameters=args, response=None, player=self.ui))
+                result = r or "Reminder set."
+
+            elif name == "youtube_video":
+                r = await asyncio.to_thread(lambda: youtube_video(parameters=args, response=None, player=self.ui))
+                result = r or "Done."
+
+            elif name == "media_control":
+                r = await asyncio.to_thread(lambda: media_control(parameters=args, response=None, player=self.ui))
+                result = r or "Done."
+
+            elif name == "screen_process":
+                threading.Thread(
+                    target=screen_process,
+                    kwargs={"parameters": args, "response": None,
+                            "player": self.ui, "session_memory": None,
+                            "speak": self._speak_vision_result},
+                    daemon=True
+                ).start()
+                result = "Vision module activated. Stay completely silent — vision module will speak directly."
+
+            elif name == "computer_settings":
+                r = await asyncio.to_thread(lambda: computer_settings(parameters=args, response=None, player=self.ui))
+                result = r or "Done."
+
+            elif name == "desktop_control":
+                r = await asyncio.to_thread(lambda: desktop_control(parameters=args, player=self.ui))
+                result = r or "Done."
+
+            elif name == "code_helper":
+                r = await asyncio.to_thread(lambda: code_helper(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
+            elif name == "dev_agent":
+                r = await asyncio.to_thread(lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
+            elif name == "agent_task":
+                from agent.task_queue import get_queue, TaskPriority
+                priority_map = {"low": TaskPriority.LOW, "normal": TaskPriority.NORMAL, "high": TaskPriority.HIGH}
+                priority = priority_map.get(args.get("priority", "normal").lower(), TaskPriority.NORMAL)
+                task_id  = get_queue().submit(
+                    goal=args.get("goal", ""),
+                    priority=priority,
+                    speak=self.speak,
+                    immediate=True,
+                )
+                result   = f"Task started (ID: {task_id})."
+
+            elif name == "web_search":
+                r = await asyncio.to_thread(lambda: web_search_action(parameters=args, player=self.ui))
+                result = r or "Done."
+            elif name == "file_processor":
+                if not args.get("file_path") and self.ui.current_file:
+                    args["file_path"] = self.ui.current_file
+                r = await asyncio.to_thread(
+                    lambda: file_processor(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "computer_control":
+                r = await asyncio.to_thread(lambda: computer_control(parameters=args, player=self.ui))
+                result = r or "Done."
+
+            elif name == "game_updater":
+                r = await asyncio.to_thread(lambda: game_updater(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
+            elif name == "flight_finder":
+                r = await asyncio.to_thread(lambda: flight_finder(parameters=args, player=self.ui))
+                result = r or "Done."
+
+            elif name == "graphics_quality":
+                quality = str(args.get("quality") or "").strip().lower()
+                if quality not in {"low", "medium", "high"}:
+                    raise ValueError("Graphics quality must be low, medium, or high.")
+                self.ui.set_graphics_quality(quality)
+                result = f"ARGUS graphics quality changed to {quality}."
+
+            elif name == "argus_ui_control":
+                action = str(args.get("action") or "").strip().lower()
+                if action == "change_theme":
+                    theme = str(args.get("theme") or "").strip().lower()
+                    allowed = {"arc_reactor", "stealth_red", "vibranium_purple", "nanotech_gold", "platinum"}
+                    if theme not in allowed:
+                        raise ValueError(f"Unknown ARGUS theme: {theme or 'missing'}")
+                    self.ui.set_theme(theme)
+                    result = f"ARGUS theme changed to {theme.replace('_', ' ')}."
+                elif action == "change_graphics_quality":
+                    quality = str(args.get("graphics_quality") or "").strip().lower()
+                    if quality not in {"low", "medium", "high"}:
+                        raise ValueError(f"Unknown graphics quality: {quality or 'missing'}")
+                    self.ui.set_graphics_quality(quality)
+                    result = f"ARGUS graphics quality changed to {quality}."
+                else:
+                    self.ui.handle_ui_command(action)
+                    result = f"ARGUS interface action completed: {action.replace('_', ' ')}."
+
+            elif name == "deep_research":
+                r = request_deep_research(parameters=args, player=self.ui, speak=self.speak)
+                result = r or "Deep research preference requested."
+
+            elif name == "create_presentation":
+                current_file = getattr(self.ui, "current_file", None)
+                supported_sources = {
+                    ".txt", ".md", ".rst", ".csv", ".json", ".jsonl", ".docx", ".pptx",
+                    ".pdf", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp",
+                    ".wav", ".mp3", ".m4a", ".mp4", ".mov", ".avi", ".webm",
+                }
+                if (
+                    not args.get("source_file")
+                    and not args.get("source_files")
+                    and current_file
+                    and Path(str(current_file)).suffix.lower() in supported_sources
+                ):
+                    args["source_files"] = [current_file]
+                r = request_presentation(parameters=args, player=self.ui, speak=self.speak)
+                result = r or "Presentation preference requested."
+
+            elif name == "task_status":
+                from agent.task_queue import get_queue
+
+                queue = get_queue()
+                action = str(args.get("action") or "get").lower()
+                task_id = str(args.get("task_id") or "").strip()
+                if action == "all" or not task_id:
+                    result = json.dumps(queue.get_all_statuses(), ensure_ascii=False)
+                elif action == "cancel":
+                    result = f"Task {task_id} cancelled." if queue.cancel(task_id) else f"Task {task_id} could not be cancelled."
+                else:
+                    status = queue.get_status(task_id)
+                    result = json.dumps(status, ensure_ascii=False) if status else f"Task {task_id} was not found."
+
+            else:
+                result = f"Unknown tool: {name}"
+
+        except Exception as e:
+            result = f"Tool '{name}' failed: {e}"
+            traceback.print_exc()
+            self.speak_error(name, e)
+
+        self._record_pending_draft(name, args, str(result or ""))
+
+        if not self.ui.muted:
+            self.ui.set_state("LISTENING")
+
+        print(f"[ARGUS] 📤 {name} → {str(result)[:80]}")
         return types.FunctionResponse(
-            id=fc.id,
-            name=name,
-            response={"result": "Startup sequence active. Try this action again when ARGUS is ready."},
+            id=fc.id, name=name,
+            response={"result": result}
         )
 
-    from core.qa_mode import guard_tool_call, qa_block_message
+    async def _execute_tool_batch(self, calls):
+        """Run read-only calls concurrently while preserving mutation order."""
+        mutating = {
+            "send_message", "prepare_message_reply", "email_control", "reminder",
+            "computer_settings", "computer_control", "desktop_control", "file_controller",
+            "file_processor", "code_helper", "dev_agent", "game_updater",
+            "create_presentation", "save_memory", "argus_ui_control", "graphics_quality",
+        }
+        call_list = list(calls or [])
+        if any(getattr(call, "name", "") in mutating for call in call_list):
+            return [await self._execute_tool(call) for call in call_list]
+        return list(await asyncio.gather(*(self._execute_tool(call) for call in call_list)))
 
-    qa_decision = guard_tool_call(name, args)
-    if not qa_decision.allowed:
-        return types.FunctionResponse(
-            id=fc.id,
-            name=name,
-            response={"result": qa_block_message(qa_decision)},
-        )
-
-    logger.info(f"[ARGUS] 🔧 {name}  {args}")
-    self.ui.set_state("THINKING")
-
-    intercepted = self._intercept_ui_tool_call(name, args)
-    if intercepted is not None:
-        return types.FunctionResponse(
-            id=fc.id,
-            name=name,
-            response={"result": intercepted},
-        )
-
-    # Fase 4 tool execution via registry
-    try:
-        from tools.registry import ToolContext, registry
-
-        tool_ctx = ToolContext(
-            ui=self.ui,
-            speak=self.speak,
-            speak_vision_result=self._speak_vision_result,
-        )
-        tool_result = await registry.execute(name=name, ctx=tool_ctx, args=args)
-        result = tool_result.get("result", "Done.")
-        silent = bool(tool_result.get("silent", False))
-    except Exception as e:
-        result = f"Tool '{name}' failed: {e}"
-        silent = False
-        logger.exception("Unhandled exception")
-        self.speak_error(name, str(e))
-
-    # Record latency (best-effort)
-    try:
-        # Note: latency measurement omitted for simplicity; can be added if needed
-        pass
-    except Exception:
-        pass
-
-    if not self.ui.muted:
-        self.ui.set_state("LISTENING")
-
-    logger.info(f"[ARGUS] 📤 {name} → {str(result)[:80]}")
-    response = {"result": result}
-    if silent:
-        response["silent"] = True
-
-    return types.FunctionResponse(
-        id=fc.id,
-        name=name,
-        response=response,
-    )
     async def _send_realtime(self):
         while True:
             if self._shutdown_requested.is_set():
@@ -926,18 +1865,36 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        """Legacy method - delegates to audio backend.
-        
-        Kept for backward compatibility. The audio backend's play_loop
-        is now started directly in run().
-        """
-        # Audio input is handled by audio backend's start_input callback
-        # This method is kept for compatibility but does nothing
-        while not self._shutdown_requested.is_set():
-            await asyncio.sleep(1)
+        print("[ARGUS] 🎤 Mic started")
+        loop = asyncio.get_event_loop()
+
+        def callback(indata, frames, time_info, status):
+            with self._speaking_lock:
+                argus_speaking = self._is_speaking
+            if not argus_speaking and not self.ui.muted:
+                data = indata.tobytes()
+                loop.call_soon_threadsafe(
+                    self.out_queue.put_nowait,
+                    {"data": data, "mime_type": "audio/pcm"}
+                )
+
+        try:
+            with sd.InputStream(
+                samplerate=SEND_SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=CHUNK_SIZE,
+                callback=callback,
+            ):
+                print("[ARGUS] 🎤 Mic stream open")
+                while not self._shutdown_requested.is_set():
+                    await asyncio.sleep(0.1)
+        except Exception as e:
+            print(f"[ARGUS] ❌ Mic: {e}")
+            raise
 
     async def _receive_audio(self):
-        logger.info("[ARGUS] 👂 Recv started")
+        print("[ARGUS] 👂 Recv started")
         out_buf, in_buf = [], []
         _new_turn = True
         turn_had_audio = False
@@ -974,8 +1931,12 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                             if txt:
                                 if not in_buf:
                                     self._current_input_transcript = ""
+                                    self._tool_approvals().begin_user_turn()
                                 in_buf.append(txt)
                                 self._current_input_transcript = " ".join(in_buf).strip()
+                                self._tool_approvals().update_user_transcript(
+                                    self._current_input_transcript
+                                )
                                 if (
                                     not getattr(self, "_pending_self_quit", False)
                                     and self._is_explicit_self_quit_transcript(self._current_input_transcript)
@@ -988,6 +1949,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
 
                             full_in = " ".join(in_buf).strip()
                             if full_in:
+                                self._tool_approvals().finish_user_turn(full_in)
                                 self._current_input_transcript = full_in
                                 self._last_input_transcript = full_in
                                 self._last_input_transcript_at = time.monotonic()
@@ -1015,7 +1977,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     if response.tool_call:
                         function_calls = list(response.tool_call.function_calls)
                         for fc in function_calls:
-                            logger.info(f"[ARGUS] 📞 {fc.name}")
+                            print(f"[ARGUS] 📞 {fc.name}")
                         fn_responses = await self._execute_tool_batch(function_calls)
                         await self.session.send_tool_response(
                             function_responses=fn_responses
@@ -1024,31 +1986,66 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                         return
         except Exception as e:
             if isinstance(e, genai.errors.APIError) and "1000" in str(e):
-                logger.info("[ARGUS] 🔌 Session closed normally.")
+                print("[ARGUS] 🔌 Session closed normally.")
                 return
-            logger.info(f"[ARGUS] ❌ Recv: {e}")
-            logger.exception("Unhandled exception")
+            print(f"[ARGUS] ❌ Recv: {e}")
+            traceback.print_exc()
             raise
 
 
 
-    async def _play_audio_delegate(self):
-        """Delegate audio playback to the audio backend.
-
-        This replaces the old _play_audio method. The audio backend's play_loop
-        handles all playback logic including external TTS passthrough.
-        """
-        if self._audio_backend:
-            await self._audio_backend.play_loop()
-        else:
-            logger.warning("[ARGUS] ⚠️ No audio backend, skipping playback")
-
     async def _play_audio(self):
-        """Legacy method - kept for backward compatibility.
+        print("[ARGUS] 🔊 Play started")
 
-        Delegates to _play_audio_delegate which uses the audio backend.
-        """
-        await self._play_audio_delegate()
+        stream = None
+        if not self.external_audio:
+            stream = sd.RawOutputStream(
+                samplerate=RECEIVE_SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=CHUNK_SIZE,
+            )
+            stream.start()
+
+        try:
+            while True:
+                if self._shutdown_requested.is_set():
+                    return
+                try:
+                    chunk = await asyncio.wait_for(
+                        self.audio_in_queue.get(),
+                        timeout=0.1
+                    )
+                except asyncio.TimeoutError:
+                    if (
+                        self._turn_done_event
+                        and self._turn_done_event.is_set()
+                        and self.audio_in_queue.empty()
+                    ):
+                        self.set_speaking(False)
+                        self._turn_done_event.clear()
+                        if self._complete_self_quit_after_audio():
+                            return
+                    continue
+                # Skip Gemini audio when external TTS is active
+                if self._tts_engine and self._ext_tts_provider and self._ext_tts_provider != "gemini":
+                    pass  # drain silently
+                else:
+                    self.set_speaking(True)
+                    if self.external_audio:
+                        send_audio = getattr(self.client, "send_audio", None)
+                        if callable(send_audio):
+                            send_audio(chunk, f"audio/pcm;rate={RECEIVE_SAMPLE_RATE}")
+                    elif stream is not None:
+                        await asyncio.to_thread(stream.write, chunk)
+        except Exception as e:
+            print(f"[ARGUS] ❌ Play: {e}")
+            raise
+        finally:
+            self.set_speaking(False)
+            if stream is not None:
+                stream.stop()
+                stream.close()
 
     async def run(self):
         api_key = self._api_key or _get_api_key()
@@ -1061,7 +2058,6 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
         self.ui.write_log(f"SYS: Gemini Live model selected: {live_model_id}")
 
         start_time = time.time()
-        reconnect_attempt = 0
         while True:
             if self._shutdown_requested.is_set():
                 return
@@ -1069,7 +2065,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
             if self.runtime_limit_seconds is not None:
                 elapsed = time.time() - start_time
                 if elapsed >= float(self.runtime_limit_seconds):
-                    logger.info(f"[ARGUS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
+                    print(f"[ARGUS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
                     try:
                         argus_status.write_status({"state": "expired"})
                     except Exception:
@@ -1081,24 +2077,23 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                 try:
                     path = Path(self.required_unlock_path)
                     if not path.exists():
-                        logger.info(f"[ARGUS] 🔒 Required unlock path not present: {self.required_unlock_path}")
-                        logger.info("Please mount the locked container (see scripts/create_locked_dmg.sh).")
+                        print(f"[ARGUS] 🔒 Required unlock path not present: {self.required_unlock_path}")
+                        print("Please mount the locked container (see scripts/create_locked_dmg.sh).")
                         time.sleep(5)
                         continue
                     if self.required_unlock_secret is not None:
                         content = path.read_text(encoding="utf-8").strip()
                         if content != self.required_unlock_secret:
-                            logger.info("[ARGUS] 🔒 unlock.key content does not match expected secret.")
-                            logger.info("Please mount the locked container with the correct unlock.key file.")
+                            print("[ARGUS] 🔒 unlock.key content does not match expected secret.")
+                            print("Please mount the locked container with the correct unlock.key file.")
                             time.sleep(5)
                             continue
                 except Exception as e:
-                    logger.info(f"[ARGUS] 🔒 Locked path check error: {e}")
+                    print(f"[ARGUS] 🔒 Locked path check error: {e}")
                     time.sleep(1)
                     continue
             try:
-                reconnect_attempt += 1
-                logger.info("[ARGUS] 🔌 Connecting...")
+                print("[ARGUS] 🔌 Connecting...")
                 self.ui.set_state("THINKING")
                 config = self._build_config()
 
@@ -1112,27 +2107,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     self.out_queue      = asyncio.Queue(maxsize=10)
                     self._turn_done_event = asyncio.Event()
 
-                    # Initialize audio backend (Phase 5)
-                    if self._audio_backend is None:
-                        self._audio_backend = create_audio_backend(
-                            external_audio=self.external_audio,
-                            speaking_lock=self._speaking_lock,
-                            is_speaking_ref=lambda: self._is_speaking,
-                            set_speaking_cb=self.set_speaking,
-                            muted_cb=lambda: self.ui.muted,
-                            shutdown_event=self._shutdown_requested,
-                            turn_done_event=self._turn_done_event,
-                            audio_in_queue=self.audio_in_queue,
-                            out_queue=self.out_queue,
-                            send_audio_cb=self._send_audio_external,
-                            tts_engine_check=lambda: bool(self._tts_engine and self._ext_tts_provider and self._ext_tts_provider != "gemini"),
-                        )
-
-                    # Start audio backend
-                    await self._audio_backend.start_input(self._on_audio_input)
-                    await self._audio_backend.start_output()
-
-                    logger.info("[ARGUS] ✅ Connected.")
+                    print("[ARGUS] ✅ Connected.")
                     self.ui.set_state("LISTENING")
                     self.ui.write_log("SYS: ARGUS online.")
                     if not self.cloud_safe:
@@ -1147,9 +2122,9 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
 
                     tg.create_task(self._send_realtime())
                     if not self.external_audio:
-                        tg.create_task(self._audio_backend.play_loop())
+                        tg.create_task(self._listen_audio())
                     tg.create_task(self._receive_audio())
-                    tg.create_task(self._play_audio_delegate())
+                    tg.create_task(self._play_audio())
                     tg.create_task(self._announce_startup())
 
             except Exception as e:
@@ -1165,7 +2140,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     self.ui.write_log(
                         f"SYS: Voice '{old_voice}' not available. Falling back to {DEFAULT_VOICE_NAME}."
                     )
-                    logger.info(f"[ARGUS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
+                    print(f"[ARGUS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
                     self.ui.sync_voice_display(DEFAULT_VOICE_NAME)
                     if not self.cloud_safe:
                         try:
@@ -1173,41 +2148,15 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                         except Exception:
                             pass
                 elif isinstance(actual, genai.errors.APIError) and "1000" in str(actual):
-                    logger.info("[ARGUS] 🔌 Session ended normally.")
+                    print("[ARGUS] 🔌 Session ended normally.")
                     if not self.cloud_safe:
                         try:
                             argus_status.write_status({"state": "offline"})
                         except Exception:
                             pass
                 else:
-                    # Optional provider resilience: transient connection errors can be
-                    # retried with backoff/jitter. By default, backoff is disabled to
-                    # preserve existing reconnect timing.
-                    if _is_transient_live_connection_error(actual):
-                        try:
-                            if get_settings().runtime.reconnect_backoff_enabled:
-                                metrics.record_reconnect_attempt()
-                                delay = _live_reconnect_delay(reconnect_attempt)
-                                jitter_ratio = float(get_settings().runtime.reconnect_jitter_ratio or 0.0)
-                                if jitter_ratio > 0:
-                                    delay = _compute_jitter_delay(
-                                        delay,
-                                        jitter_ratio,
-                                        rand_fn=random.random,
-                                    )
-                                max_attempts = int(get_settings().runtime.reconnect_max_attempts or 0)
-                                if max_attempts > 0 and reconnect_attempt > max_attempts:
-                                    logger.info("[ARGUS] Reconnect attempts limit reached; exiting")
-                                    os._exit(0)
-                                logger.info(f"[ARGUS] Transient error; retrying in {delay:.2f}s (attempt {reconnect_attempt})")
-                                await self._wait_before_reconnect(delay)
-                                continue
-                        except Exception:
-                            # Never break the main loop due to metrics/backoff logic.
-                            pass
-
-                    logger.info(f"[ARGUS] ⚠️ {e}")
-                    logger.exception("Unhandled exception")
+                    print(f"[ARGUS] ⚠️ {e}")
+                    traceback.print_exc()
 
 def main():
     import sys
@@ -1217,21 +2166,26 @@ def main():
 
         return self_test_main([argument for argument in sys.argv[1:] if argument != "--self-test"])
 
+    from core.intro_tts import render_intro_segments_with_live, render_intro_with_live
     from ui import ArgusUI
 
     running_as_app = getattr(sys, "frozen", False)
 
     if os.environ.get("ARGUS_CLI") != "1" and not running_as_app:
-        logger.info("[ARGUS] Please launch with the ARGUS CLI: argus")
+        print("[ARGUS] Please launch with the ARGUS CLI: argus")
         return
     if not wait_for_startup_claps():
         return
-    logger.info("[ARGUS] ⚡ Powering up the interface...")
+    print("[ARGUS] ⚡ Powering up the interface...")
     try:
-        ui = ArgusUI("face.png")
+        ui = ArgusUI(
+            "face.png",
+            intro_tts_renderer=render_intro_with_live,
+            segmented_intro_tts_renderer=render_intro_segments_with_live,
+        )
     except Exception as exc:
-        logger.info(f"[ARGUS] ❌ Interface startup failed: {exc}")
-        logger.exception("Unhandled exception")
+        print(f"[ARGUS] ❌ Interface startup failed: {exc}")
+        traceback.print_exc()
         return
 
     def runner():
@@ -1286,15 +2240,15 @@ def main():
                     try:
                         asyncio.run_coroutine_threadsafe(argus.session.close(), argus._loop)
                     except Exception as e:
-                        logger.info(f"[ARGUS] Could not close session: {e}")
+                        print(f"[ARGUS] Could not close session: {e}")
         ui.on_tts_provider_change = _on_tts_change
         try:
             asyncio.run(argus.run())
         except KeyboardInterrupt:
-            logger.info("\n🔴 Shutting down...")
+            print("\n🔴 Shutting down...")
         except Exception as exc:
             message = f"Gemini startup failed: {str(exc)[:180]}"
-            logger.info(f"[ARGUS] ❌ {message}")
+            print(f"[ARGUS] ❌ {message}")
             try:
                 ui.write_log(f"ERR: {message}")
                 ui.set_state("LISTENING")
@@ -1302,9 +2256,9 @@ def main():
                 pass
 
     threading.Thread(target=runner, daemon=True).start()
-    logger.info("[ARGUS] ✅ Interface ready.")
+    print("[ARGUS] ✅ Interface ready.")
     ui.root.mainloop()
-    logger.info("[ARGUS] Interface closed.")
+    print("[ARGUS] Interface closed.")
 
 def cli_main():
     """Canonical console entry point installed as the `argus` command."""

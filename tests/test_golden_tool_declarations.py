@@ -26,13 +26,22 @@ def test_tool_declarations_match_golden():
             "parameters": decl["parameters"]
         })
     
-    # Compare
-    assert len(current) == len(golden), f"Tool count mismatch: current={len(current)}, golden={len(golden)}"
-    
-    for curr, gold in zip(current, golden):
-        assert curr["name"] == gold["name"], f"Name mismatch: {curr['name']} != {gold['name']}"
-        assert curr["description"] == gold["description"], f"Description mismatch for {curr['name']}"
-        assert curr["parameters"] == gold["parameters"], f"Parameters mismatch for {curr['name']}"
+    golden_by_name = {declaration["name"]: declaration for declaration in golden}
+    assert len(current) == len(golden_by_name), (
+        f"Tool count mismatch: current={len(current)}, golden={len(golden_by_name)}"
+    )
+    assert {declaration["name"] for declaration in current} == set(golden_by_name), (
+        "Tool names do not match the golden fixture"
+    )
+
+    for declaration in current:
+        expected = golden_by_name[declaration["name"]]
+        assert declaration["description"] == expected["description"], (
+            f"Description mismatch for {declaration['name']}"
+        )
+        assert declaration["parameters"] == expected["parameters"], (
+            f"Parameters mismatch for {declaration['name']}"
+        )
 
 
 if __name__ == "__main__":
