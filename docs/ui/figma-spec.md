@@ -1,22 +1,22 @@
-# JARVIS — UI Display: especificação para Figma
+# ARGUS — UI Display: especificação para Figma
 
 > Estado: especificação pronta para handoff. O arquivo do Figma não foi criado porque a conta conectada informa assento **View**; faltam permissão de edição/criação e acesso de edição ao arquivo do projeto. Esta especificação e os SVGs conceituais não são exports do Figma.
 
 ## 1. Reconhecimento do repositório
 
-Verificado em 2026-09-29 no repositório privado [anonymandk/jarvis](https://github.com/anonymandk/jarvis), branch padrão **main**.
+Verificado em 2026-09-29 no repositório privado [anonymandk/argus](https://github.com/anonymandk/argus), branch padrão **main**.
 
-- **main.py** contém a classe **JarvisLive**. Ela recebe **client: JarvisClient**; portanto, a premissa de que o núcleo é integrado diretamente à janela não descreve o contrato atual.
-- **core/jarvis_client.py** define o protocolo transport-neutral **JarvisClient**, com métodos como **set_state**, **write_log**, **show_subtitle** e **clear_subtitle**.
+- **main.py** contém a classe **ArgusLive**. Ela recebe **client: ArgusClient**; portanto, a premissa de que o núcleo é integrado diretamente à janela não descreve o contrato atual.
+- **core/argus_client.py** define o protocolo transport-neutral **ArgusClient**, com métodos como **set_state**, **write_log**, **show_subtitle** e **clear_subtitle**.
 - **ui.py** implementa a interface PyQt6: HUD animado, conversa, waveform visual, console, progresso de tool, settings, toasts e modo compacto flutuante de 80×80.
-- **api/websocket_client.py** implementa outro adaptador de **JarvisClient**; **api/server.py** publica eventos via WebSocket no cliente web. Os eventos atuais usam tipos como **status**, **message**, **transcript**, **audio** e **progress**.
+- **api/websocket_client.py** implementa outro adaptador de **ArgusClient**; **api/server.py** publica eventos via WebSocket no cliente web. Os eventos atuais usam tipos como **status**, **message**, **transcript**, **audio** e **progress**.
 - O cliente web existe em **web/**; não há diretório **ui/** nem **docs/ui/** na branch padrão.
 - O núcleo usa Gemini Live diretamente por **google.genai**, com seleção de modelo em **core/live_model.py**. Não há abstração de provedores LLM confirmada.
-- O desktop escolhe voz, mas a seleção de dispositivos de áudio não aparece no contrato **JarvisClient**; os streams atuais usam os dispositivos padrão de **sounddevice**.
+- O desktop escolhe voz, mas a seleção de dispositivos de áudio não aparece no contrato **ArgusClient**; os streams atuais usam os dispositivos padrão de **sounddevice**.
 - O HUD mostra CPU, memória, rede e alguns dados de GPU/temperatura quando disponíveis. Não expõe latência do Gemini. O waveform desenhado é animado e não recebe nível real de áudio.
 - O cliente web já salva mensagens finais em PostgreSQL. Este escopo mostra somente a sessão corrente no HUD e não adiciona persistência, histórico ou schema.
 
-Fontes inspecionadas: README.md, main.py, ui.py, core/jarvis_client.py, api/websocket_client.py, api/server.py, árvore web/ e issues abertas (nenhuma encontrada).
+Fontes inspecionadas: README.md, main.py, ui.py, core/argus_client.py, api/websocket_client.py, api/server.py, árvore web/ e issues abertas (nenhuma encontrada).
 
 ## 2. Escopo e princípios
 
@@ -29,18 +29,18 @@ Princípios: leitura rápida a 1440×900; núcleo visual central sem esconder os
 | Estado/Evento | Evidência no código atual | Componente proposto | Lacuna/observação |
 |---|---|---|---|
 | Em espera / idle | “Standing by.” no diálogo; o núcleo não emite um estado IDLE estável | Core/Orb, Header/ConnectionStatus | Normalizar o estado inicial como idle; não inferir conexão online a partir do estado visual |
-| Ouvindo | JarvisLive chama set_state("LISTENING"); UI usa HudCanvas e CompactModeWidget | Core/Orb, Audio/Visualizer, Header/StateBadge | Estado disponível; nível do microfone não é emitido |
+| Ouvindo | ArgusLive chama set_state("LISTENING"); UI usa HudCanvas e CompactModeWidget | Core/Orb, Audio/Visualizer, Header/StateBadge | Estado disponível; nível do microfone não é emitido |
 | Processando | THINKING em conexão/tool call; UI também entende PROCESSING | Core/Orb, Tools/ExecutionPanel, StatusBar | Unificar THINKING/PROCESSING em processing, preservando subtipo |
 | Falando | set_speaking() envia SPEAKING; transcrição incremental passa por show_subtitle() | Core/Orb, Audio/Visualizer, Transcript/Live | O waveform atual é animação visual, não amplitude real |
 | Erro | Logs ERR: e toasts; não há estado de núcleo ERROR consistente | Toast/Error, Console/Logs, Header/StateBadge | Adicionar evento estruturado de erro no adapter futuro |
 | Reconectando | O loop do engine reconecta; helper de backoff existe, mas não há evento visual RECONNECTING confirmado | Header/ConnectionStatus, Core/Orb | Normalizar conexão em evento explícito; não confundir com THINKING |
 | Transcrição do usuário | Transcrição de entrada acumula e vira You: ... no fim do turno | Transcript/Live | Texto parcial do usuário não é enviado ao desktop em tempo real |
-| Transcrição do JARVIS | output_transcription chama show_subtitle; mensagem final vai a write_log | Transcript/Live, Transcript/History | Mostrar incremental/final e speaker label |
+| Transcrição do ARGUS | output_transcription chama show_subtitle; mensagem final vai a write_log | Transcript/Live, Transcript/History | Mostrar incremental/final e speaker label |
 | Tool call | _execute_tool entra em THINKING; UI possui ToolProgressWidget, com heurísticas baseadas em logs | Tools/ExecutionPanel, Tools/ResultCard | Não há evento tool_call estruturado no protocolo atual |
 | Resultado de tool | Resultado é enviado ao Gemini; logs podem alimentar widgets quando escritos pela UI | Tools/ResultCard, Console/Logs | Adotar resumo seguro, sem argumentos secretos |
 | Gemini Live / latência | /status reporta estado/conectado/voz; WebSocket tem ping/pong; sem RTT medido | Header/ConnectionStatus, Metric/Latency | Calcular RTT no cliente via ping/pong; latência ainda sem fonte |
 | Áudio / waveform | HudCanvas desenha barras; captura e playback não publicam amplitude ao cliente | Audio/Visualizer | Animar por estado enquanto não houver métrica; rotular “atividade”, não dB |
-| Logs | write_log() e console com prefixos SYS/ERR/You/Jarvis | Console/Logs | Futuro contrato inclui nível, origem e correlação |
+| Logs | write_log() e console com prefixos SYS/ERR/You/Argus | Console/Logs | Futuro contrato inclui nível, origem e correlação |
 | Métricas locais | CPU, RAM, rede, GPU e temperatura são amostradas pelo desktop | Metric/System | Valores indisponíveis devem exibir “—”; não usar zero |
 
 ### Vocabulário visual normalizado
@@ -55,7 +55,7 @@ Princípios: leitura rápida a 1440×900; núcleo visual central sem esconder os
 
 ## 4. Contrato de eventos proposto (v1)
 
-Um adapter de apresentação traduz chamadas existentes de JarvisClient para eventos versionados. A mesma estrutura serve para sinais Qt internos ou WebSocket local caso a UI seja separada do processo. Não alterar main.py nem o núcleo neste handoff.
+Um adapter de apresentação traduz chamadas existentes de ArgusClient para eventos versionados. A mesma estrutura serve para sinais Qt internos ou WebSocket local caso a UI seja separada do processo. Não alterar main.py nem o núcleo neste handoff.
 
 Exemplo de envelope JSON (campos comuns):
 
@@ -67,7 +67,7 @@ Exemplo de envelope JSON (campos comuns):
       "seq": 42,
       "payload": {
         "state": "listening",
-        "source": "jarvis_client",
+        "source": "argus_client",
         "connection": {
           "provider": "gemini_live",
           "status": "connected",
@@ -161,7 +161,7 @@ Cada component set deve usar Auto Layout nos agrupamentos, propriedades boolean/
 
 ### Desktop — 1440×900
 
-- Top bar 64 px: marca JARVIS à esquerda, provider Gemini Live + badge textual de conexão ao centro, relógio/sessão/atalhos à direita.
+- Top bar 64 px: marca ARGUS à esquerda, provider Gemini Live + badge textual de conexão ao centro, relógio/sessão/atalhos à direita.
 - Rail 72 px: ícones para Conversa, Tools, Logs e Configurações; tooltip e foco visível.
 - Área principal entre x=96 e x=1416, y=88 e y=852: grid 3/6/3 com gutters 16 px. Coluna esquerda (~317 px) = transcrição + entrada; centro (~650 px) = Orb, estado legível, visualizador e controles; direita (~317 px) = tools atuais, conexão/RTT e logs recentes.
 - Barra inferior 32 px: mute, provider, estado reduzido de movimento e atalhos.
@@ -186,7 +186,7 @@ Caminho principal: idle → listening → processing → speaking → listening.
 
 ## 9. Integração técnica
 
-1. Preservar JarvisLive e o protocolo JarvisClient; criar futuramente um mapper/event adapter, sem importar Gemini ou módulos de tools na UI.
+1. Preservar ArgusLive e o protocolo ArgusClient; criar futuramente um mapper/event adapter, sem importar Gemini ou módulos de tools na UI.
 2. No desktop, entregar eventos ao thread Qt por signals/queue (o app já usa sinais Qt para estado/log/subtitle).
 3. No web client, mapear os eventos existentes da WebSocketClient para o envelope v1; cliente web envia texto/áudio/mute e ping, sem executar regra de negócio.
 4. Conexão deve mostrar estado real de ready/status; RTT pode usar ping/pong medido no cliente; sem RTT, exibir “—”.
@@ -225,4 +225,3 @@ Checklist:
 1. Conceder ao conector Figma um assento Editor ou permissão **Can edit** no team/project e compartilhar o arquivo existente, se já existir.
 2. Confirmar se a experiência final é a janela desktop PyQt6, o cliente web, ou ambas; esta spec organiza dados para ambas.
 3. Confirmar disponibilidade/seleção de dispositivos de áudio e o modelo real de telemetria antes de ligar os controles.
-

@@ -31,7 +31,7 @@ export function Onboarding({ user, onComplete, onSignOut }: { user: User; onComp
   return (
     <main className="onboarding-shell">
       <header className="onboarding-header">
-        <div className="wordmark"><span className="wordmark-mark">J</span> JARVIS</div>
+        <div className="wordmark"><span className="wordmark-mark">J</span> ARGUS</div>
         <button className="text-button" onClick={onSignOut}>Usar outra conta</button>
       </header>
       <section className="onboarding-sequence" lang="pt-BR">
@@ -45,7 +45,7 @@ export function Onboarding({ user, onComplete, onSignOut }: { user: User; onComp
           <KeyRound className="stage-icon" size={28} />
           <h1>Conecte sua camada de inteligência.</h1>
           <p>
-            O JARVIS usa sua chave de API do Gemini para voz e raciocínio ao vivo. A chave é criptografada ao ser armazenada e nunca retorna ao navegador.
+            O ARGUS usa sua chave de API do Gemini para voz e raciocínio ao vivo. A chave é criptografada ao ser armazenada e nunca retorna ao navegador.
           </p>
           <form onSubmit={submit} className="key-form">
             <label>Chave de API do Gemini<Input name="api_key" type="password" autoComplete="off" required minLength={20} placeholder="Cole a chave do Google AI Studio" /></label>

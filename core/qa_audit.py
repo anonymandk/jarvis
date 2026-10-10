@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 from core.qa_report import Finding
@@ -14,12 +15,29 @@ EXPECTED_TOOLS = {
     "prepare_message_reply", "send_message", "email_control", "reminder", "youtube_video", "media_control",
     "screen_process", "computer_settings", "browser_control", "file_controller",
     "desktop_control", "code_helper", "dev_agent", "agent_task",
-    "computer_control", "game_updater", "flight_finder", "jarvis_ui_control",
+    "computer_control", "game_updater", "flight_finder", "argus_ui_control",
     "file_processor", "create_presentation", "deep_research", "graphics_quality", "task_status", "save_memory",
 }
 
 
 def declared_tools(main_path: Path) -> list[str]:
+    """Get declared tool names from the tool registry.
+
+    Falls back to AST parsing of main.py for backward compatibility.
+    """
+    # Try to get from registry first (new architecture)
+    try:
+        # Add project root to path if needed
+        project_root = main_path.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        from tools.registry import registry
+        registry._internal_discover()
+        return sorted(registry._declarations.keys())
+    except Exception:
+        pass
+
+    # Fallback: parse main.py for TOOL_DECLARATIONS (old architecture)
     tree = ast.parse(main_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
@@ -60,7 +78,7 @@ def repository_findings(root: Path) -> list[Finding]:
         findings.append(Finding(
             "P0", "Declared tools lack dispatch branches", "Tool routing",
             "A valid Live tool call can return no useful result.",
-            "Compare TOOL_DECLARATIONS with JarvisLive._execute_tool.",
+            "Compare TOOL_DECLARATIONS with ArgusLive._execute_tool.",
             "Every declaration has an execution path.",
             f"Unhandled={unhandled}",
         ))

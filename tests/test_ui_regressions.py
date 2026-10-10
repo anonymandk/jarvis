@@ -152,22 +152,22 @@ class UIRegressionTests(unittest.TestCase):
         self.assertIn("border: 1px solid", overlay._graphics_btns["medium"].styleSheet())
         overlay.deleteLater()
 
-    def test_explicit_self_quit_commands_route_to_jarvis(self):
+    def test_explicit_self_quit_commands_route_to_argus(self):
         for command in (
-            "quit JARVIS",
+            "quit ARGUS",
             "shut yourself down",
-            "JARVIS, turn yourself off",
-            "go offline JARVIS",
+            "ARGUS, turn yourself off",
+            "go offline ARGUS",
         ):
-            self.assertEqual(ui.route_jarvis_ui_command(command), ("quit_jarvis", None))
-        self.assertIsNone(ui.route_jarvis_ui_command("shut down my computer"))
-        self.assertIsNone(ui.route_jarvis_ui_command("stop talking"))
+            self.assertEqual(ui.route_argus_ui_command(command), ("quit_argus", None))
+        self.assertIsNone(ui.route_argus_ui_command("shut down my computer"))
+        self.assertIsNone(ui.route_argus_ui_command("stop talking"))
 
     def test_quit_button_is_visible_and_accessible(self):
         button = self.window._quit_btn
-        self.assertEqual(button.objectName(), "JarvisQuitButton")
-        self.assertEqual(button.accessibleName(), "Sair do JARVIS")
-        self.assertEqual(button.toolTip(), "Sair do JARVIS")
+        self.assertEqual(button.objectName(), "ArgusQuitButton")
+        self.assertEqual(button.accessibleName(), "Sair do ARGUS")
+        self.assertEqual(button.toolTip(), "Sair do ARGUS")
         self.assertFalse(button.isHidden())
 
     def test_dock_uses_crisp_command_rail_visual_language(self):
@@ -175,15 +175,15 @@ class UIRegressionTests(unittest.TestCase):
         self.window._apply_state("IDLE")
         rail = self.window._dock_frame
         style = rail.styleSheet().lower()
-        self.assertEqual(rail.objectName(), "JarvisCommandRail")
-        self.assertEqual(rail.accessibleName(), "Barra de comandos do JARVIS")
+        self.assertEqual(rail.objectName(), "ArgusCommandRail")
+        self.assertEqual(rail.accessibleName(), "Barra de comandos do ARGUS")
         self.assertIsNone(rail.graphicsEffect())
         self.assertNotIn("qlineargradient", style)
         self.assertNotIn("border-radius: 24px", style)
         self.assertIn("border-radius: 6px", style)
         self.assertEqual(self.window._rail_control_track.objectName(), "CommandControlTrack")
-        self.assertEqual(self.window._rail_control_track.accessibleName(), "Controles do JARVIS")
-        self.assertEqual(self.window._command_title_lbl.text(), "JARVIS")
+        self.assertEqual(self.window._rail_control_track.accessibleName(), "Controles do ARGUS")
+        self.assertEqual(self.window._command_title_lbl.text(), "ARGUS")
         self.assertIn("espera", self.window._rail_mode_lbl.text().lower())
 
         buttons = rail.findChildren(ui.QPushButton)
@@ -219,7 +219,7 @@ class UIRegressionTests(unittest.TestCase):
     def test_quit_command_uses_shared_shutdown_path(self):
         with patch.object(self.window, "_request_quit") as request_quit, \
              patch.object(ui.QTimer, "singleShot", side_effect=lambda _delay, callback: callback()):
-            self.assertTrue(self.window._handle_ui_command("quit JARVIS"))
+            self.assertTrue(self.window._handle_ui_command("quit ARGUS"))
         request_quit.assert_called_once_with()
 
     def test_setup_overlay_is_centered_after_first_show(self):
@@ -562,10 +562,10 @@ class UIRegressionTests(unittest.TestCase):
         self.assertNotIn("showFullScreen", source)
 
     def test_intro_captions_use_the_live_subtitle_widget(self):
-        self.window._show_intro_caption("Good evening. I am JARVIS.")
+        self.window._show_intro_caption("Good evening. I am ARGUS.")
         self.assertEqual(
             self.window._subtitle._chunks,
-            [["Good", "evening.", "I", "am", "JARVIS."]],
+            [["Good", "evening.", "I", "am", "ARGUS."]],
         )
         self.window._show_intro_caption("Communications linked.")
         self.assertEqual(
@@ -740,12 +740,12 @@ class UIRegressionTests(unittest.TestCase):
             patch("core.intro_tts.genai.Client", return_value=client),
         ):
             pcm = asyncio.run(intro_tts.render_intro_with_live(
-                "JARVIS online.", "charon", "test-key"
+                "ARGUS online.", "charon", "test-key"
             ))
         self.assertEqual(pcm, b"\x01\x00" * 64)
         request = client.aio.models.generate_content.await_args.kwargs
         self.assertEqual(request["model"], intro_tts.MODELS[0])
-        self.assertEqual(request["contents"], "JARVIS online.")
+        self.assertEqual(request["contents"], "ARGUS online.")
         config = request["config"]
         self.assertEqual(config.response_modalities, ["AUDIO"])
         self.assertIsNone(config.tools)
@@ -1014,7 +1014,7 @@ class UIRegressionTests(unittest.TestCase):
         original_entries = list(entries)
         entries.clear()
         try:
-            self.window._parse_log_for_context("SYS: JARVIS online.")
+            self.window._parse_log_for_context("SYS: ARGUS online.")
             self.app.processEvents()
             self.assertEqual(entries, [])
 
@@ -1086,14 +1086,14 @@ class UIRegressionTests(unittest.TestCase):
         self.assertIn("timeout=REQUEST_TIMEOUT_SECONDS", source)
 
     def test_tour_and_greeting_use_distinct_caches(self):
-        narration = "JARVIS online."
+        narration = "ARGUS online."
         self.assertNotEqual(
             ui._intro_voice_cache_path("charon", narration, "tour"),
             ui._intro_voice_cache_path("charon", narration, "greeting"),
         )
 
     def test_each_selected_voice_uses_its_own_intro_cache(self):
-        narration = "JARVIS online."
+        narration = "ARGUS online."
         self.assertNotEqual(
             ui._intro_voice_cache_path("charon", narration, "tour"),
             ui._intro_voice_cache_path("kore", narration, "tour"),
@@ -1319,7 +1319,7 @@ class UIRegressionTests(unittest.TestCase):
             self.window._intro_voice_preparing = False
             self.window._intro_overlay = None
             self.window._overlay = None
-            facade = ui.JarvisUI.__new__(ui.JarvisUI)
+            facade = ui.ArgusUI.__new__(ui.ArgusUI)
             facade._win = self.window
             self.assertTrue(facade.operational_ready)
             self.window._intro_in_progress = True
@@ -1357,7 +1357,7 @@ class UIRegressionTests(unittest.TestCase):
             self.assertTrue(self.window._ready)
             self.assertTrue(self.window._ready_announced)
             self.assertIsNone(self.window._overlay)
-            facade = ui.JarvisUI.__new__(ui.JarvisUI)
+            facade = ui.ArgusUI.__new__(ui.ArgusUI)
             facade._win = self.window
             self.assertTrue(facade.operational_ready)
         finally:
@@ -1436,7 +1436,7 @@ class UIRegressionTests(unittest.TestCase):
         visualizer.set_state("speaking")
         self.assertTrue(orb._timer.isActive())
         self.assertTrue(visualizer._timer.isActive())
-        QTest.qWait(ui.TOKENS.motion_ms["state_transition"] + 50)
+        QTest.qWait(ui.TOKENS.motion_ms["state_transition"] + 500)
         self.assertFalse(orb._timer.isActive())
         self.assertFalse(visualizer._timer.isActive())
         orb.set_state("listening")

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from core.qa_audit import repository_findings
-from ui.adapters.events import JarvisEventMapper, normalize_state
+from ui.adapters.events import ArgusEventMapper, normalize_state
 from ui.theme.tokens import (
     SPECIAL_TEXT_PAIRS,
     SURFACE_COLOR_KEYS,
@@ -201,9 +201,9 @@ class UiTokenTests(unittest.TestCase):
         self.assertFalse(any(finding.subsystem == "Architecture" for finding in findings))
 
 
-class JarvisEventMapperTests(unittest.TestCase):
+class ArgusEventMapperTests(unittest.TestCase):
     def setUp(self):
-        self.mapper = JarvisEventMapper(
+        self.mapper = ArgusEventMapper(
             session_id="session-test",
             clock=lambda: datetime(2026, 10, 1, 12, 34, 56, 789000, timezone.utc),
         )
@@ -221,7 +221,7 @@ class JarvisEventMapperTests(unittest.TestCase):
             ("MUTED", "muted"),
             ("NOT_A_STATE", None),
         )
-        mapper = JarvisEventMapper(session_id="state-table")
+        mapper = ArgusEventMapper(session_id="state-table")
         for raw, expected in cases:
             with self.subTest(raw=raw):
                 self.assertEqual(normalize_state(raw), expected)
@@ -235,7 +235,7 @@ class JarvisEventMapperTests(unittest.TestCase):
     def test_existing_client_calls_use_v1_envelope_and_sequence(self):
         state = self.mapper.client_call("set_state", "THINKING")
         partial = self.mapper.client_call("show_subtitle", "Olá")
-        final = self.mapper.client_call("write_log", "Jarvis: Pronto")
+        final = self.mapper.client_call("write_log", "Argus: Pronto")
         self.assertEqual([state["seq"], partial["seq"], final["seq"]], [1, 2, 3])
         self.assertEqual(state["payload"]["state"], "processing")
         self.assertEqual(
@@ -260,7 +260,7 @@ class JarvisEventMapperTests(unittest.TestCase):
         cleared = self.mapper.clear_subtitle()
         partial = self.mapper.subtitle("O processo concluiu.")
         user = self.mapper.log("You: O que aconteceu?")
-        final = self.mapper.log("Jarvis: O processo concluiu.")
+        final = self.mapper.log("Argus: O processo concluiu.")
         turn_ids = {
             event["payload"]["turn_id"]
             for event in (user, partial, final, cleared)
@@ -271,7 +271,7 @@ class JarvisEventMapperTests(unittest.TestCase):
         self.assertNotEqual(next_user["payload"]["turn_id"], final["payload"]["turn_id"])
 
     def test_concurrent_events_receive_unique_monotonic_sequence_numbers(self):
-        mapper = JarvisEventMapper(session_id="concurrent")
+        mapper = ArgusEventMapper(session_id="concurrent")
         with ThreadPoolExecutor(max_workers=8) as executor:
             events = list(executor.map(
                 lambda index: mapper.metric(name="sample", value=index, unit="count"),

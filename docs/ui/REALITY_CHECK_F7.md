@@ -4,7 +4,7 @@ Status: PASS on the available Linux host. This branch remains local; no PR was p
 
 ## Delivered
 
-- Updated the clone command to `https://github.com/anonymandk/jarvis.git`, matching the repository being maintained.
+- Updated the clone command to `https://github.com/anonymandk/argus.git`, matching the repository being maintained.
 - Added embedded desktop and web screenshots to `README.md`, plus links to the UI specification, evidence indexes, and design decisions. Screenshot text identifies the test-fixture states as synthetic.
 - Rewrote `DESIGN.md` around the shared `design/tokens.json` source and the current desktop/web layout, state model, accessibility, motion behavior, and runtime telemetry limits.
 - Expanded `CONTRIBUTING.md` with Python installation and QA instructions, web checks, Playwright capture steps, and the staged-secret scan.
@@ -19,7 +19,7 @@ Status: PASS on the available Linux host. This branch remains local; no PR was p
 - `npm run build` — passed on Next.js 16.3.1; both app routes prerendered.
 - `python scripts/generate_ui_tokens.py --check` — passed; generated Python and CSS tokens match `design/tokens.json`.
 - `python scripts/capture_web_ui.py` — passed; captured authentication loading/sign-in, compact onboarding, all seven states, a populated console at 980×680, and reduced motion. The script also captured the scrolled session log, rejected horizontal overflow, and verified reduced-motion scrolling. Metrics are in `docs/ui/evidence/f5/capture-metrics.json`.
-- `jarvis --self-test` with this worktree on `PYTHONPATH` and QA mode enabled — **8 pass, 0 warning, 0 fail; automated health 100%**. AI/voice, messaging, system, and vision groups still require supervised live certification; no real message or desktop mutation was performed.
+- `argus --self-test` with this worktree on `PYTHONPATH` and QA mode enabled — **8 pass, 0 warning, 0 fail; automated health 100%**. AI/voice, messaging, system, and vision groups still require supervised live certification; no real message or desktop mutation was performed.
 - `scripts/qa.py automated` — **6 checks passed, 0 failed**. The full suite reported **300 tests passed**. Source compilation, dependency consistency, contrast for all five themes, offscreen UI evidence, and tracked-secret scanning passed. Report: `.qa-artifacts/20261002-020805/qa-report.md` (ignored, not committed).
 - `bash scripts/pre-commit-check.sh` — passed; no secrets found in staged changes.
 - `git diff --check` and token generation check — passed.

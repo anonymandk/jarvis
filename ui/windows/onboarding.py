@@ -108,7 +108,7 @@ class _MainWindowOnboardingMixin:
         self._log.append_log("SYS: PARALLAX UI COMPLETE   [OK]")
         self._log.append_log("SYS: VOICE SYNTHESIS READY  [OK]")
         self._log.append_log(f"SYS: PLATFORM {os_name.upper()} DETECTED")
-        self._log.append_log("SYS: JARVIS MARK XXXIX - ALL SYSTEMS NOMINAL")
+        self._log.append_log("SYS: ARGUS MARK XXXIX - ALL SYSTEMS NOMINAL")
         # After setup: show voice popup first, then name popup
         self._show_voice_select_then_name()
 
@@ -120,7 +120,7 @@ class _MainWindowOnboardingMixin:
         if backdrop is None:
             backdrop = QWidget(cw)
             backdrop.setObjectName("StartupBackdrop")
-            backdrop.setAccessibleName("JARVIS startup setup")
+            backdrop.setAccessibleName("ARGUS startup setup")
             backdrop.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             backdrop.setStyleSheet(f"background: {C.BG};")
             self._startup_backdrop = backdrop
@@ -224,7 +224,7 @@ class _MainWindowOnboardingMixin:
             )
             self._intro_prepared_sig.emit(ready, message)
 
-        threading.Thread(target=_prepare, name="jarvis-intro-prepare", daemon=True).start()
+        threading.Thread(target=_prepare, name="argus-intro-prepare", daemon=True).start()
 
     def _on_intro_voice_prepared(self, ready: bool, message: str):
         self._intro_voice_preparing = False

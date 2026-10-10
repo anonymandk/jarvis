@@ -1,4 +1,4 @@
-"""JARVIS heads-up display components."""
+"""ARGUS heads-up display components."""
 
 from .activity import AIActivityCanvas, AgentGridWidget
 from .canvas import HudCanvas

@@ -1,6 +1,6 @@
 # F4 desktop UI evidence
 
-Captured on Linux with PyQt6's offscreen platform by a direct run of `scripts/qa_ui_probe.py` for the F4 candidate. The probe uses isolated temporary settings and API-key paths. It does not read or alter the operator's real `~/.jarvis/config` files. The complete automated QA report for this code revision is `20261002-005901`; it records the full test suite and accessibility metrics.
+Captured on Linux with PyQt6's offscreen platform by a direct run of `scripts/qa_ui_probe.py` for the F4 candidate. The probe uses isolated temporary settings and API-key paths. It does not read or alter the operator's real `~/.argus/config` files. The complete automated QA report for this code revision is `20261002-005901`; it records the full test suite and accessibility metrics.
 
 The 29 captures cover the 1440×900 desktop, the 980×680 minimum desktop, populated conversation and logs, empty tools and files, all seven session labels, low/medium/high graphics profiles, reduced motion, all Settings pages, and the 420×640 compact window with the same seven session labels, three recent messages, and reduced motion.
 

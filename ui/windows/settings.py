@@ -190,7 +190,7 @@ class _MainWindowSettingsMixin:
             }}
         """)
         if self.centralWidget():
-            self.centralWidget().setStyleSheet(f"QWidget#jarvisRoot {{ background: {C.BG}; }}")
+            self.centralWidget().setStyleSheet(f"QWidget#argusRoot {{ background: {C.BG}; }}")
         if hasattr(self, "_middle_section"):
             self._middle_section.setStyleSheet(f"background: {C.BG};")
         if hasattr(self, "_ai_core_wrap"):
@@ -254,7 +254,7 @@ class _MainWindowSettingsMixin:
             self._compact_widget.refresh_theme()
 
         try:
-            settings_dir = Path.home() / ".jarvis" / "config"
+            settings_dir = Path.home() / ".argus" / "config"
             settings_dir.mkdir(parents=True, exist_ok=True)
             settings_file = settings_dir / "settings.json"
             try:

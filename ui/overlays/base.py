@@ -9,7 +9,7 @@ globals().update({key: value for key, value in vars(_runtime).items() if not key
 
 class _OverlayBase(QWidget):
     """
-    Base class for all JARVIS overlay popups.
+    Base class for all ARGUS overlay popups.
     Provides:
       - Drag-to-move (click anywhere on the widget and drag)
       - An ✕ close button in the top-right corner

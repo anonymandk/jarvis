@@ -132,7 +132,7 @@ def main() -> int:
         window._mission.log_widget._queue.clear()
         window._mission.log_widget._typing = False
         window._mission.log_widget.clear()
-        window._mission.log_widget.append_log("JARVIS: Sessão pronta para mensagens.")
+        window._mission.log_widget.append_log("ARGUS: Sessão pronta para mensagens.")
         QTest.qWait(480)
         _capture(window, screenshots / "desktop" / "logs-populated.png", results, "desktop-logs")
         window._navigate_to_mission_tab(3)
@@ -141,8 +141,8 @@ def main() -> int:
         _capture(window, screenshots / "desktop" / "files-empty.png", results, "desktop-files-empty")
         window._navigate_to_mission_tab(1)
 
-        window._log.append_log("You: Olá, JARVIS.")
-        window._log.append_log("JARVIS: Estou pronto para ajudar.")
+        window._log.append_log("You: Olá, ARGUS.")
+        window._log.append_log("ARGUS: Estou pronto para ajudar.")
         QTest.qWait(420)
         _capture(window, screenshots / "desktop" / "conversation-populated.png", results, "desktop-conversation")
         window._chat_bubble.refresh_theme()

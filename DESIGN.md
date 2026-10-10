@@ -1,6 +1,6 @@
-# JARVIS Design System
+# ARGUS Design System
 
-JARVIS is a personal desktop AI operator with a companion hosted web console.
+ARGUS is a personal desktop AI operator with a companion hosted web console.
 The interface should feel capable, focused, and present. State is easy to read,
 voice and text are equally available, and repeated work stays direct after
 setup.

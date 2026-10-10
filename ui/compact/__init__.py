@@ -1,4 +1,4 @@
-"""420×640 floating JARVIS compact experience."""
+"""420×640 floating ARGUS compact experience."""
 
 from __future__ import annotations
 
@@ -53,8 +53,8 @@ class CompactModeWidget(QWidget):
         self.setFixedSize(
             TOKENS.layout_sizes["compact_width"], TOKENS.layout_sizes["compact_height"],
         )
-        self.setAccessibleName("JARVIS compacto")
-        self.setWindowTitle("JARVIS compacto")
+        self.setAccessibleName("ARGUS compacto")
+        self.setWindowTitle("ARGUS compacto")
         self.setStyleSheet(f"background: {C.BG}; color: {C.WHITE};")
 
         root = QVBoxLayout(self)
@@ -65,7 +65,7 @@ class CompactModeWidget(QWidget):
         root.setSpacing(TOKENS.spacing["legacy_6"])
 
         header = QHBoxLayout()
-        brand = QLabel("JARVIS")
+        brand = QLabel("ARGUS")
         brand.setFont(QFont(UI_FONT, TOKENS.font_sizes["title"], QFont.Weight.DemiBold))
         brand.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
         header.addWidget(brand)
@@ -94,7 +94,7 @@ class CompactModeWidget(QWidget):
         self._state_label = QLabel("◇  Em espera")
         self._state_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._state_label.setFont(QFont(UI_FONT, TOKENS.font_sizes["section"], QFont.Weight.DemiBold))
-        self._state_label.setAccessibleName("Estado atual do JARVIS")
+        self._state_label.setAccessibleName("Estado atual do ARGUS")
         root.addWidget(self._state_label)
 
         visualizer_row = QHBoxLayout()
@@ -142,7 +142,7 @@ class CompactModeWidget(QWidget):
         input_row = QHBoxLayout()
         input_row.setSpacing(TOKENS.spacing["xs"])
         self._input = QLineEdit()
-        self._input.setAccessibleName("Mensagem para JARVIS")
+        self._input.setAccessibleName("Mensagem para ARGUS")
         self._input.setPlaceholderText("Escreva uma mensagem")
         self._input.setMinimumHeight(TOKENS.layout_sizes["control_target"])
         self._input.returnPressed.connect(self._send)
@@ -209,7 +209,7 @@ class CompactModeWidget(QWidget):
 
         clean = str(message or "").strip()
         lower = clean.lower()
-        if lower.startswith(("you:", "jarvis:", "err:")):
+        if lower.startswith(("you:", "argus:", "err:")):
             self._recent_logs.append(clean)
             self._recent_logs = self._recent_logs[-3:]
             localized = [

@@ -8,7 +8,7 @@ _runtime = importlib.import_module("ui._runtime")
 globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
 
 class ResearchProgressWidget(QWidget):
-    """Compact, factual progress surface for a long-running JARVIS task."""
+    """Compact, factual progress surface for a long-running ARGUS task."""
 
     _update_sig = pyqtSignal(object)
     _hide_sig = pyqtSignal()
@@ -268,7 +268,7 @@ class ToolProgressWidget(QWidget):
 
 
 class TaskQueueWidget(QWidget):
-    """Displays a live task queue parsed from JARVIS log messages."""
+    """Displays a live task queue parsed from ARGUS log messages."""
 
     _sig = pyqtSignal(str, str)  # (task_name, status)
 

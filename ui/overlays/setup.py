@@ -102,7 +102,7 @@ class SetupOverlay(QWidget):
         guide = QLabel(
             "1. Open Google AI Studio and sign in.\n"
             "2. Create an API key for your project.\n"
-            "3. Copy it here; JARVIS verifies it before continuing."
+            "3. Copy it here; ARGUS verifies it before continuing."
         )
         guide.setWordWrap(True)
         guide.setStyleSheet(f"color: {C.TEXT_MED}; background: {C.DARK}; padding: {TOKENS.spacing['legacy_8']}px;")

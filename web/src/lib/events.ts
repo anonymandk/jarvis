@@ -67,7 +67,7 @@ function currentTurn(context: EnvelopeContext, startNew = false): string {
   return context.turnId;
 }
 
-export function normalizeJarvisState(value: unknown): string | null {
+export function normalizeArgusState(value: unknown): string | null {
   return typeof value === "string"
     ? STATE_ALIASES[value.trim().toUpperCase()] ?? null
     : null;
@@ -93,7 +93,7 @@ export function mapSocketEvent(value: unknown, context: EnvelopeContext): Envelo
   const at = raw.timestamp;
   switch (raw.type) {
     case "status": {
-      const state = normalizeJarvisState(raw.state);
+      const state = normalizeArgusState(raw.state);
       return state ? makeEnvelope(context, "state", { state, source: "websocket_adapter" }, at) : null;
     }
     case "message": {
@@ -153,7 +153,7 @@ export function mapSocketEvent(value: unknown, context: EnvelopeContext): Envelo
         mime_type: String(raw.mime_type ?? "audio/pcm;rate=24000"),
       }, at);
     case "ready": {
-      const state = normalizeJarvisState(raw.state);
+      const state = normalizeArgusState(raw.state);
       return makeEnvelope(context, "ready", state ? { state } : {}, at);
     }
     default:

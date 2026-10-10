@@ -17,9 +17,9 @@ Status: PASS. Implementation, automated gates, and independent review are comple
 - `npm run lint` — passed.
 - `npm run build` — passed on Next.js 16.3.1.
 - `python scripts/generate_ui_tokens.py --check` — generated Python and CSS match `design/tokens.json`.
-- `/home/darker/jarvis-worktrees/f0-baseline/.venv/bin/python -m pytest -q tests/test_ui_token_generation.py` — 2 passed.
-- `/home/darker/jarvis-worktrees/f0-baseline/.venv/bin/python scripts/qa.py automated` — final run 20261002-014310: 6 checks passed, 0 failed; all 300 Python tests passed, including the offscreen UI probe and contrast audit. The detailed report is in the local ignored artifact `.qa-artifacts/20261002-014310/qa-report.md`.
-- `/home/darker/jarvis-worktrees/f0-baseline/.venv/bin/python scripts/capture_web_ui.py` — 12 viewport fixtures plus a separate scrolled session-log capture. The script serves the production build, mocks API and websocket input, checks all seven state labels, checks reduced-motion CSS and verifies that a new message requests `auto` scrolling, rejects horizontal overflow, and verifies that the command field fits in the 980×680 viewport. See the [F5 evidence index](evidence/f5/README.md).
+- `/home/darker/argus-worktrees/f0-baseline/.venv/bin/python -m pytest -q tests/test_ui_token_generation.py` — 2 passed.
+- `/home/darker/argus-worktrees/f0-baseline/.venv/bin/python scripts/qa.py automated` — final run 20261002-014310: 6 checks passed, 0 failed; all 300 Python tests passed, including the offscreen UI probe and contrast audit. The detailed report is in the local ignored artifact `.qa-artifacts/20261002-014310/qa-report.md`.
+- `/home/darker/argus-worktrees/f0-baseline/.venv/bin/python scripts/capture_web_ui.py` — 12 viewport fixtures plus a separate scrolled session-log capture. The script serves the production build, mocks API and websocket input, checks all seven state labels, checks reduced-motion CSS and verifies that a new message requests `auto` scrolling, rejects horizontal overflow, and verifies that the command field fits in the 980×680 viewport. See the [F5 evidence index](evidence/f5/README.md).
 
 ## Limits
 

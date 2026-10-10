@@ -9,7 +9,7 @@ globals().update({key: value for key, value in vars(_runtime).items() if not key
 
 class AgentGridWidget(QWidget):
     """
-    Vertical timeline agent display – polished JARVIS edition.
+    Vertical timeline agent display – polished ARGUS edition.
     Implements all 12 feedback points: hierarchy, color, spacing, activity stream.
     """
 

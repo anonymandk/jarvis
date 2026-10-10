@@ -70,8 +70,8 @@ class ChatBubbleWidget(QWidget):
         ib_lay.setSpacing(TOKENS.spacing["legacy_6"])
 
         self._input = QLineEdit()
-        self._input.setAccessibleName("Mensagem para JARVIS")
-        self._input.setPlaceholderText("Escreva para JARVIS")
+        self._input.setAccessibleName("Mensagem para ARGUS")
+        self._input.setPlaceholderText("Escreva para ARGUS")
         self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
         self._input.setMinimumHeight(44)
         self._input.setStyleSheet(f"""
@@ -159,7 +159,7 @@ class ChatBubbleWidget(QWidget):
         self._message_widgets.clear()
         self._messages.clear()
         self._empty_hint.setVisible(not saved_messages)
-        prefixes = {"user": "You: ", "ai": "JARVIS: ", "file": "FILE: ", "error": "ERR: ", "sys": "SYS: "}
+        prefixes = {"user": "You: ", "ai": "ARGUS: ", "file": "FILE: ", "error": "ERR: ", "sys": "SYS: "}
         for message in saved_messages:
             self._skip_typing = True
             self._on_message(prefixes.get(message["sender"], "SYS: ") + message["text"])
@@ -177,7 +177,7 @@ class ChatBubbleWidget(QWidget):
             self._skip_typing = True
             self._on_message(self._typing_full)
             return
-        partial = 'JARVIS: ' + self._typing_body[:self._typing_idx]
+        partial = 'ARGUS: ' + self._typing_body[:self._typing_idx]
         if hasattr(self, '_typing_bubble') and self._typing_bubble:
             self._c_lay.removeWidget(self._typing_bubble)
             self._typing_bubble.deleteLater()
@@ -202,8 +202,8 @@ class ChatBubbleWidget(QWidget):
         self._sig.emit(text)
 
     def _on_message(self, text: str):
-        # Typing animation for JARVIS messages
-        if text.lower().startswith('jarvis:') and not getattr(self, '_skip_typing', False):
+        # Typing animation for ARGUS messages
+        if text.lower().startswith('argus:') and not getattr(self, '_skip_typing', False):
             body = text[7:].strip()
             self._typing_idx = 0
             self._typing_body = body
@@ -227,14 +227,14 @@ class ChatBubbleWidget(QWidget):
             border_col = C.PRI_DIM
             text_col = C.WHITE
             name = "VOCÊ"
-        elif tl.startswith("jarvis:"):
+        elif tl.startswith("argus:"):
             sender = "ai"
             display = text[7:].strip()
             align = Qt.AlignmentFlag.AlignLeft
             bg_col = C.PRI_GHO
             border_col = C.PRI
             text_col = C.PRI
-            name = "JARVIS"
+            name = "ARGUS"
         elif tl.startswith("file:"):
             sender = "file"
             display = text[5:].strip()
@@ -371,7 +371,7 @@ class FocusDialogueWidget(QWidget):
 
         message_row = QHBoxLayout()
         message_row.setSpacing(TOKENS.spacing["legacy_10"])
-        self._speaker_lbl = QLabel("JARVIS")
+        self._speaker_lbl = QLabel("ARGUS")
         self._speaker_lbl.setFixedWidth(62)
         self._speaker_lbl.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         message_row.addWidget(self._speaker_lbl, alignment=Qt.AlignmentFlag.AlignTop)
@@ -385,8 +385,8 @@ class FocusDialogueWidget(QWidget):
         input_row = QHBoxLayout()
         input_row.setSpacing(TOKENS.spacing["legacy_7"])
         self._input = QLineEdit()
-        self._input.setAccessibleName("Mensagem para JARVIS")
-        self._input.setPlaceholderText("Escreva para JARVIS")
+        self._input.setAccessibleName("Mensagem para ARGUS")
+        self._input.setPlaceholderText("Escreva para ARGUS")
         self._input.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"]))
         self._input.setMinimumHeight(40)
         self._input.returnPressed.connect(self._submit)
@@ -415,8 +415,8 @@ class FocusDialogueWidget(QWidget):
         lower = clean.lower()
         if lower.startswith("you:"):
             speaker, body, color = "VOCÊ", clean[4:].strip(), C.WHITE
-        elif lower.startswith("jarvis:"):
-            speaker, body, color = "JARVIS", clean[7:].strip(), C.PRI
+        elif lower.startswith("argus:"):
+            speaker, body, color = "ARGUS", clean[7:].strip(), C.PRI
         elif lower.startswith("err:") or "error" in lower:
             speaker, body, color = "ALERT", clean.replace("ERR:", "").strip(), C.RED
         else:
@@ -533,7 +533,7 @@ class _SubtitleWidget(QWidget):
         self._recalc_scroll_target()
 
         # Stop any pending hold timer — it will be restarted by start_hold_timer()
-        # which is called externally only when JARVIS finishes talking (turn_complete).
+        # which is called externally only when ARGUS finishes talking (turn_complete).
         self._hold_timer.stop()
 
         # Ensure animation timer is running for scroll
@@ -543,7 +543,7 @@ class _SubtitleWidget(QWidget):
         self.update()
 
     def start_hold_timer(self):
-        """Start (or restart) the fade-out hold timer. Call this when JARVIS finishes speaking."""
+        """Start (or restart) the fade-out hold timer. Call this when ARGUS finishes speaking."""
         if self._chunks:
             self._hold_timer.stop()
             self._hold_timer.start(self._HOLD_MS)

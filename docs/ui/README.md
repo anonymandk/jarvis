@@ -1,11 +1,11 @@
-# JARVIS — UI Display
+# ARGUS — UI Display
 
 ## Links
 
-- Repositório: [anonymandk/jarvis](https://github.com/anonymandk/jarvis)
-- Notion: [JARVIS — UI Display](https://app.notion.com/p/3ea9a662a0c5817fa9deed59994abbde?pvs=204)
+- Repositório: [anonymandk/argus](https://github.com/anonymandk/argus)
+- Notion: [ARGUS — UI Display](https://app.notion.com/p/3ea9a662a0c5817fa9deed59994abbde?pvs=204)
 - Figma: sem link de arquivo. A conta conectada está no assento **View**; nenhum arquivo foi criado nem alterado.
-- PR: [docs: add JARVIS UI display specification](https://github.com/anonymandk/jarvis/pull/1).
+- PR: [docs: add ARGUS UI display specification](https://github.com/anonymandk/argus/pull/1).
 
 ## Entrega
 
@@ -40,5 +40,4 @@ Envelope v1 comum:
 
     {"v":1,"type":"state|transcript|tool_call|metric|log|error","ts":"ISO-8601 UTC","session_id":"...","seq":1,"payload":{}}
 
-JarvisLive já depende do protocolo JarvisClient; a UI deve continuar sendo um adapter de apresentação. O contrato detalhado e o mapeamento dos eventos atuais estão em [figma-spec.md](figma-spec.md). Esta entrega não altera main.py ou o núcleo, não adiciona persistência e não cria schema Supabase.
-
+ArgusLive já depende do protocolo ArgusClient; a UI deve continuar sendo um adapter de apresentação. O contrato detalhado e o mapeamento dos eventos atuais estão em [figma-spec.md](figma-spec.md). Esta entrega não altera main.py ou o núcleo, não adiciona persistência e não cria schema Supabase.

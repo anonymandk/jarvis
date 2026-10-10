@@ -12,13 +12,13 @@ const HTTP_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").re
 export const WS_URL = (process.env.NEXT_PUBLIC_WS_URL || HTTP_URL.replace(/^http/, "ws")).replace(/\/$/, "");
 
 export function getToken() {
-  return typeof window === "undefined" ? null : window.localStorage.getItem("jarvis_session");
+  return typeof window === "undefined" ? null : window.localStorage.getItem("argus_session");
 }
 
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem("jarvis_session", token);
-  else window.localStorage.removeItem("jarvis_session");
+  if (token) window.localStorage.setItem("argus_session", token);
+  else window.localStorage.removeItem("argus_session");
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

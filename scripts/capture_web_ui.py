@@ -89,7 +89,7 @@ def mock_api(page: Page, *, configured: bool, delay_auth: float = 0) -> None:
 
 
 def set_session(page: Page) -> None:
-    page.add_init_script("window.localStorage.setItem('jarvis_session', 'synthetic-evidence-token')")
+    page.add_init_script("window.localStorage.setItem('argus_session', 'synthetic-evidence-token')")
 
 
 def mock_socket(page: Page, frames: list[dict[str, Any]]) -> None:
@@ -182,7 +182,7 @@ def run(browser: Browser) -> list[dict[str, Any]]:
     page = make_page(browser, 1440, 900, reduced_motion=True)
     mock_api(page, configured=True)
     set_session(page)
-    page.add_init_script("""window.__jarvisScrollCalls = []; const nativeScrollIntoView = Element.prototype.scrollIntoView; Element.prototype.scrollIntoView = function(options) { window.__jarvisScrollCalls.push({behavior: typeof options === 'object' ? options.behavior : options, messageCount: document.querySelectorAll('.message').length}); return nativeScrollIntoView.call(this, options); };""")
+    page.add_init_script("""window.__argusScrollCalls = []; const nativeScrollIntoView = Element.prototype.scrollIntoView; Element.prototype.scrollIntoView = function(options) { window.__argusScrollCalls.push({behavior: typeof options === 'object' ? options.behavior : options, messageCount: document.querySelectorAll('.message').length}); return nativeScrollIntoView.call(this, options); };""")
     mock_socket(page, [
         {"type": "status", "state": "speaking"},
         {"type": "message", "role": "assistant", "content": "Mensagem com movimento reduzido."},
@@ -191,7 +191,7 @@ def run(browser: Browser) -> list[dict[str, Any]]:
     page.get_by_role("heading", name="Falando", exact=True).wait_for()
     page.get_by_text("Mensagem com movimento reduzido.").wait_for()
     page.locator(".connection-connected").wait_for(timeout=10000)
-    scroll_calls = page.evaluate("window.__jarvisScrollCalls")
+    scroll_calls = page.evaluate("window.__argusScrollCalls")
     if not scroll_calls or scroll_calls[-1]["behavior"] != "auto" or scroll_calls[-1]["messageCount"] < 1:
         raise AssertionError(f"Reduced-motion message arrival did not request auto scrolling: {scroll_calls}")
     motion = page.locator(".reactor .orbit-a").evaluate("node => ({reduced: matchMedia('(prefers-reduced-motion: reduce)').matches, duration: getComputedStyle(node).animationDuration})")

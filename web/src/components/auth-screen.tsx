@@ -36,7 +36,7 @@ export function AuthScreen({ onSession }: { onSession: (session: Session) => voi
   return (
     <main className="entry-shell">
       <section className="entry-identity" aria-labelledby="entry-title">
-        <div className="wordmark"><span className="wordmark-mark">J</span> JARVIS</div>
+        <div className="wordmark"><span className="wordmark-mark">J</span> ARGUS</div>
         <div className="entry-reactor" aria-hidden="true"><span /></div>
         <p className="eyebrow">Sistema pessoal de inteligência</p>
         <h1 id="entry-title">Comande sem atrito.</h1>
@@ -63,7 +63,7 @@ export function AuthScreen({ onSession }: { onSession: (session: Session) => voi
           <label>Senha<Input name="password" type="password" minLength={10} autoComplete={mode === "login" ? "current-password" : "new-password"} required placeholder="Pelo menos 10 caracteres" /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Autorizando" : mode === "login" ? "Entrar no JARVIS" : "Criar conta segura"}
+            {pending ? "Autorizando" : mode === "login" ? "Entrar no ARGUS" : "Criar conta segura"}
             {!pending && <ArrowRight size={16} />}
           </Button>
         </form>

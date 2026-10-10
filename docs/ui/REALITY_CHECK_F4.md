@@ -15,7 +15,7 @@ The F4 review is complete and the phase is ready to commit.
 - Keyboard: the regression sends Tab through the navigation rail, conversation input, microphone/voice/name/theme controls, task/tools/logs/files tabs, Settings, and the window menu.
 - Motion: the orb and visualizer animate briefly on a state transition, then stop; low graphics quality and reduced-motion preference keep their timers stopped. Explicit motion settings override the detected system value.
 - Error copy: when the client reports an error without structured detail, the desktop directs the operator to Logs before retrying; compact mode directs them to open the full window and consult Logs. No cause is invented.
-- Integrity: the tracked-secret scan found no Gemini-key pattern. The UI implementation does not change `JarvisLive`, actions, hosted API behavior, or `core/prompt.txt`.
+- Integrity: the tracked-secret scan found no Gemini-key pattern. The UI implementation does not change `ArgusLive`, actions, hosted API behavior, or `core/prompt.txt`.
 
 ## Validation note
 

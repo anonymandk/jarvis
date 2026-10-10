@@ -16,7 +16,7 @@ class _RootShim:
         pass
 
 
-class JarvisUI:
+class ArgusUI:
 
     def __init__(
         self,
@@ -137,7 +137,7 @@ class JarvisUI:
             pass
 
     def start_subtitle_hold(self):
-        """Thread-safe: start the subtitle fade-out hold timer (call when JARVIS finishes talking)."""
+        """Thread-safe: start the subtitle fade-out hold timer (call when ARGUS finishes talking)."""
         try:
             self._win._sub_hold_sig.emit()
         except Exception:
@@ -246,11 +246,11 @@ class JarvisUI:
             pass
 
     def set_theme(self, theme_key: str):
-        """Thread-safe theme change requested by JARVIS."""
+        """Thread-safe theme change requested by ARGUS."""
         self._win._theme_sig.emit(theme_key)
 
     def set_graphics_quality(self, quality: str):
-        """Thread-safe graphics quality change requested by JARVIS."""
+        """Thread-safe graphics quality change requested by ARGUS."""
         self._win._graphics_sig.emit(quality)
 
     def handle_ui_command(self, action: str):

@@ -1,4 +1,4 @@
-"""Quiet state-driven reactor and activity visualizer for the JARVIS core."""
+"""Quiet state-driven reactor and activity visualizer for the ARGUS core."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ _STATE_COLOR_ROLES = {
 
 
 class ReactorOrb(QWidget):
-    """One clear JARVIS mark whose motion follows state and user preferences."""
+    """One clear ARGUS mark whose motion follows state and user preferences."""
 
     _ACTIVE_STATES = {"listening", "processing", "speaking", "reconnecting"}
 
@@ -30,7 +30,7 @@ class ReactorOrb(QWidget):
         self.setMinimumSize(184, 184)
         self.setMaximumSize(320, 320)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setAccessibleName("JARVIS reator central")
+        self.setAccessibleName("ARGUS reator central")
         self._state = "idle"
         self._frame = 0
         self._quality = _normalize_graphics_quality(graphics_quality)

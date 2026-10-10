@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to JARVIS are recorded here. This file tracks the current
+Notable changes to ARGUS are recorded here. This file tracks the current
 unreleased repository work; it does not imply a published release.
 
 ## Unreleased — 2026-10-02
@@ -19,7 +19,7 @@ unreleased repository work; it does not imply a published release.
 
 ### Changed
 
-- Updated the README clone command to use `anonymandk/jarvis` and added desktop
+- Updated the README clone command to use `anonymandk/argus` and added desktop
   and web previews.
 - Rewrote `DESIGN.md` to describe the implemented shared tokens, layouts,
   accessibility, motion, and runtime-signal limits.

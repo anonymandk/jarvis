@@ -63,11 +63,11 @@ BASE_DIR   = _base_dir()
 CONFIG_DIR = BASE_DIR / "config"
 API_FILE   = CONFIG_DIR / "api_keys.json"
 FONT_DIR   = BASE_DIR / "assets" / "fonts"
-UI_SETTINGS_FILE = Path.home() / ".jarvis" / "config" / "settings.json"
-LAYOUT_SETTINGS_FILE = Path.home() / ".jarvis" / "config" / "layout_settings.json"
+UI_SETTINGS_FILE = Path.home() / ".argus" / "config" / "settings.json"
+LAYOUT_SETTINGS_FILE = Path.home() / ".argus" / "config" / "layout_settings.json"
 
 # Each profile changes both cadence and rendering density.  Keeping this data
-# centralized makes the Settings UI, the renderer, and JARVIS voice commands
+# centralized makes the Settings UI, the renderer, and ARGUS voice commands
 # agree on what Low / Medium / High actually mean.
 GRAPHICS_PROFILES = {
     "low": {
@@ -189,15 +189,15 @@ def _save_intro_settings(completed: bool, greeting_enabled: bool) -> None:
     UI_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     UI_SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-def route_jarvis_ui_command(command: str):
+def route_argus_ui_command(command: str):
     normalized = " ".join(re.sub(r"[^a-z ]+", " ", str(command or "").lower()).split())
     patterns = (
-        r"^(?:jarvis )?(?:quit|exit|close)(?: jarvis)?$",
+        r"^(?:argus )?(?:quit|exit|close)(?: argus)?$",
         r"^shut yourself down$",
-        r"^(?:jarvis )?turn yourself off$",
-        r"^go offline(?: jarvis)?$",
+        r"^(?:argus )?turn yourself off$",
+        r"^go offline(?: argus)?$",
     )
-    return ("quit_jarvis", None) if any(re.fullmatch(pattern, normalized) for pattern in patterns) else None
+    return ("quit_argus", None) if any(re.fullmatch(pattern, normalized) for pattern in patterns) else None
 VOICE_OPTIONS = list(PROVIDER_VOICES["gemini"])
 VOICE_VALUE_TO_LABEL = {value: label for label, value in VOICE_OPTIONS}
 VOICE_LABEL_TO_VALUE = {label.lower(): value for label, value in VOICE_OPTIONS}
@@ -406,7 +406,7 @@ class MainWindow(_MainWindowStartupMixin, _MainWindowSettingsMixin, _MainWindowC
 
     _intro_prepared_sig = pyqtSignal(bool, str)
 
-from .facade import JarvisUI, _RootShim
+from .facade import ArgusUI, _RootShim
 
 def _sync_ui_component_globals():
     """Keep split component modules compatible with the legacy patch surface."""

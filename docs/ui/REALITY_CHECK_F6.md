@@ -33,7 +33,7 @@ No tool was executed during this audit. In particular, no shell-injection payloa
 - `computer_control` reaches typing, clipboard, mouse, and keyboard operations directly from model-supplied arguments (`main.py:1640-1642`; `actions/computer_control.py:383-441`). There is no user-confirmation token or code-level preflight in this dispatch path. The system prompt provides typing restrictions at `core/prompt.txt:18`, so enforcement currently depends on model compliance.
 - `dev_agent` can create and write project files, install dependencies, open VS Code, and run generated code (`main.py:1613-1615`; `actions/dev_agent.py:238-271, 273-292, 294-347`). Its tool schema describes project creation but does not require a separate approval step (`main.py:682-693`).
 - `email_control` has a prepare/approve flow and checks the visible Gmail recipients, subject, and body before sending (`actions/email_control.py:789-824`). However, the dispatcher accepts `action="approve"` from a tool call without checking for a later, explicit user-confirmation event tied to that exact pending draft (`main.py:1571-1576`, `actions/email_control.py:1265-1278`). The prompt instructs the model to wait for confirmation, but the code does not enforce it.
-- `send_message` sends a user-authored message directly by design when the user asks (`core/prompt.txt:14`, `main.py:1567-1569`). This is consistent with the current prompt policy, but authorization is not independently enforced in code. JARVIS-authored replies use a separate prepare/approve lifecycle, which has the same dispatcher boundary.
+- `send_message` sends a user-authored message directly by design when the user asks (`core/prompt.txt:14`, `main.py:1567-1569`). This is consistent with the current prompt policy, but authorization is not independently enforced in code. ARGUS-authored replies use a separate prepare/approve lifecycle, which has the same dispatcher boundary.
 
 **Recommended correction:** add a dispatcher-level approval record bound to the initiating user turn and the exact operation or draft; reject any approval action without a matching later user confirmation. Preserve the current direct-send policy only where the application can verify an explicit user request. This changes tool behavior and was not implemented.
 
@@ -44,13 +44,13 @@ No tool was executed during this audit. In particular, no shell-injection payloa
 ## Dependency changes
 
 - `requirements-desktop.txt` contains the local desktop runtime and optional integrations.
-- `requirements-api.txt` contains hosted-service dependencies and the direct imports needed when the API creates `JarvisLive`.
+- `requirements-api.txt` contains hosted-service dependencies and the direct imports needed when the API creates `ArgusLive`.
 - `requirements-dev.txt` installs both runtime profiles plus pytest for CI and local development.
 - `requirements.txt` remains a backwards-compatible aggregate used by existing setup and launcher scripts.
 - The UTF-8 BOM was removed from the root manifest.
 - Both Gemini SDK distributions remain. `google-generativeai` is imported at runtime by `actions/code_helper.py`, `actions/computer_settings.py`, `actions/desktop.py`, `actions/dev_agent.py`, `actions/flight_finder.py`, `actions/youtube_video.py`, `agent/error_handler.py`, `agent/executor.py`, and `agent/planner.py`. Removing it before those call sites are migrated would break those actions.
 
-The hosted API profile includes `google-genai`, `google-generativeai`, and `sounddevice` because the API's WebSocket route creates `JarvisLive` from `main.py`, which imports those packages at module load and exposes legacy-SDK actions.
+The hosted API profile includes `google-genai`, `google-generativeai`, and `sounddevice` because the API's WebSocket route creates `ArgusLive` from `main.py`, which imports those packages at module load and exposes legacy-SDK actions.
 
 ## Documentation hygiene
 
@@ -59,7 +59,7 @@ The awareness-engine note now lives at `docs/awareness-engine-enhanced.md`; `doc
 ## Verification
 
 - `python -m pip install --dry-run --no-deps -r requirements-dev.txt`: passed on Linux/Python 3.11.16; Windows and macOS markers were skipped as expected.
-- `JARVIS_QA_MODE=1 JARVIS_QA_WORKSPACE=.qa-artifacts/f6-qa-workspace QT_QPA_PLATFORM=offscreen python scripts/qa.py automated`: **6 passed, 0 failed**. This includes source compilation, dependency consistency, all 300 Python tests, UI contrast, offscreen UI evidence, and tracked-secret scan. The audit still reports the two inherited P2 findings: 471 broad exception handlers and nine legacy Gemini SDK import modules.
+- `ARGUS_QA_MODE=1 ARGUS_QA_WORKSPACE=.qa-artifacts/f6-qa-workspace QT_QPA_PLATFORM=offscreen python scripts/qa.py automated`: **6 passed, 0 failed**. This includes source compilation, dependency consistency, all 300 Python tests, UI contrast, offscreen UI evidence, and tracked-secret scan. The audit still reports the two inherited P2 findings: 471 broad exception handlers and nine legacy Gemini SDK import modules.
 - `git diff --check`: passed.
 - Local QA evidence: `.qa-artifacts/20261002-015852/` (ignored, not committed).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Side-effect-safe capability certification for the development JARVIS build."""
+"""Side-effect-safe capability certification for the development ARGUS build."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class CapabilityResult:
 def _run_tests(*names: str) -> tuple[bool, str]:
     environment = {
         **os.environ,
-        "JARVIS_QA_MODE": "1",
+        "ARGUS_QA_MODE": "1",
         "QT_QPA_PLATFORM": "offscreen",
     }
     result = subprocess.run(
@@ -141,7 +141,7 @@ def _browser() -> CapabilityResult:
     try:
         from playwright.sync_api import sync_playwright
 
-        with tempfile.TemporaryDirectory(prefix="jarvis-browser-self-test-") as directory:
+        with tempfile.TemporaryDirectory(prefix="argus-browser-self-test-") as directory:
             screenshot = Path(directory) / "local-page.png"
             with sync_playwright() as playwright:
                 chrome_error = None
@@ -160,13 +160,13 @@ def _browser() -> CapabilityResult:
                     "<main style='height:1400px'><input id='q'><button id='go'>Search</button>"
                     "<p id='state'>idle</p></main><script>go.onclick=()=>state.textContent=q.value</script>"
                 )
-                page.locator("#q").fill("jarvis")
+                page.locator("#q").fill("argus")
                 page.locator("#go").click()
                 page.mouse.wheel(0, 500)
                 state = page.locator("#state").inner_text()
                 page.screenshot(path=str(screenshot))
                 browser.close()
-            if state != "jarvis" or not screenshot.exists():
+            if state != "argus" or not screenshot.exists():
                 raise RuntimeError("local interaction result was incomplete")
     except Exception as exc:
         return CapabilityResult("BROWSER", "FAIL", f"local Chrome interaction failed: {exc}")
@@ -191,7 +191,7 @@ def _files() -> CapabilityResult:
     try:
         from actions import file_controller
 
-        with tempfile.TemporaryDirectory(prefix="jarvis-file-self-test-") as directory:
+        with tempfile.TemporaryDirectory(prefix="argus-file-self-test-") as directory:
             root = Path(directory)
             destination = root / "moved"
             destination.mkdir()
@@ -289,7 +289,7 @@ def run() -> tuple[list[CapabilityResult], Path]:
         _memory,
     )
     results: list[CapabilityResult] = []
-    print("\nJARVIS CAPABILITY SELF-TEST\n")
+    print("\nARGUS CAPABILITY SELF-TEST\n")
     for check in checks:
         result = check()
         results.append(result)
@@ -303,7 +303,7 @@ def run() -> tuple[list[CapabilityResult], Path]:
     automated_health = round((len(results) - failed) / len(results) * 100)
     live_pending = sum(result.live_required for result in results)
     print(
-        f"\nJARVIS AUTOMATED HEALTH: {automated_health}% "
+        f"\nARGUS AUTOMATED HEALTH: {automated_health}% "
         f"({passed} pass, {warnings} warning, {failed} fail)"
     )
     print(f"LIVE CERTIFICATION: {live_pending} supervised group(s) still required")
@@ -325,7 +325,7 @@ def run() -> tuple[list[CapabilityResult], Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run side-effect-safe JARVIS capability checks.")
+    parser = argparse.ArgumentParser(description="Run side-effect-safe ARGUS capability checks.")
     parser.parse_args(argv)
     results, _ = run()
     return 1 if any(result.status == "FAIL" for result in results) else 0

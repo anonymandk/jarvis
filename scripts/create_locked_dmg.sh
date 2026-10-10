@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Creates an encrypted disk image for macOS users to store a single unlock.key file.
 # Usage:
-#   ./scripts/create_locked_dmg.sh ~/Jarvis_locked.dmg JARVIS_LOCKED
+#   ./scripts/create_locked_dmg.sh ~/Argus_locked.dmg ARGUS_LOCKED
 # The script will prompt you for a password to protect the disk image, then
 # create an unlock.key file inside the mounted volume and print the secret.
 
 set -euo pipefail
-OUT=${1:-$HOME/Jarvis_locked.sparsebundle}
-VOL_NAME=${2:-JARVIS_LOCKED}
+OUT=${1:-$HOME/Argus_locked.sparsebundle}
+VOL_NAME=${2:-ARGUS_LOCKED}
 SIZE=${3:-10m}
 
 echo "This will create an encrypted disk image: $OUT"
@@ -41,11 +41,11 @@ echo "Created unlock key for volume /Volumes/$VOL_NAME/unlock.key"
 echo
 cat <<EOF
 IMPORTANT:
-  Set this secret in your shell before running JARVIS:
-    export JARVIS_LOCKED_KEY_SECRET="$SECRET"
-  Then run JARVIS with the locked volume name and your Gemini key:
-    JARVIS_LOCKED_VOLUME="$VOL_NAME" \ 
-      JARVIS_LOCKED_KEY_SECRET="$SECRET" \ 
+  Set this secret in your shell before running ARGUS:
+    export ARGUS_LOCKED_KEY_SECRET="$SECRET"
+  Then run ARGUS with the locked volume name and your Gemini key:
+    ARGUS_LOCKED_VOLUME="$VOL_NAME" \
+      ARGUS_LOCKED_KEY_SECRET="$SECRET" \
       GEMINI_API_KEY="YOUR_KEY" python3 main.py
 EOF
 

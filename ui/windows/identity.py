@@ -103,11 +103,11 @@ class _MainWindowIdentityMixin:
             from memory.memory_manager import update_memory
             update_memory({"identity": {"name": {"value": save_name}}})
             self._log.append_log(f"SYS: Identity set — {save_name}.")
-            self._log.append_log(f"JARVIS: The workshop is now at your disposal, {save_name}.")
-            self._log.append_log("JARVIS: All systems nominal. How may I assist you today?")
+            self._log.append_log(f"ARGUS: The workshop is now at your disposal, {save_name}.")
+            self._log.append_log("ARGUS: All systems nominal. How may I assist you today?")
         except Exception as e:
             self._log.append_log(f"SYS: Could not save name: {e}")
-        # Notify JarvisLive so it can update the running session immediately
+        # Notify ArgusLive so it can update the running session immediately
         if self.on_name_change:
             try:
                 self.on_name_change(save_name)
@@ -321,6 +321,6 @@ class _MainWindowIdentityMixin:
                     label = lbl
                     break
             self._tts_btn.setText(f"Voz · {label}")
-            self._tts_btn.setToolTip(f"Voz do JARVIS: {label}")
+            self._tts_btn.setToolTip(f"Voz do ARGUS: {label}")
         except Exception:
             self._tts_btn.setText("Voz")

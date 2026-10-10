@@ -1,4 +1,4 @@
-"""Translate existing JarvisClient notifications into the UI v1 envelope.
+"""Translate existing ArgusClient notifications into the UI v1 envelope.
 
 This mapper only emits facts represented by its inputs. It never infers tool
 execution, connection health, latency, audio levels, or error recovery data
@@ -38,7 +38,7 @@ def normalize_state(value: str) -> str | None:
     return _STATE_ALIASES.get(str(value or "").strip().upper())
 
 
-class JarvisEventMapper:
+class ArgusEventMapper:
     """Build ordered v1 events from the presentation-facing client methods."""
 
     def __init__(
@@ -80,7 +80,7 @@ class JarvisEventMapper:
         normalized = normalize_state(value)
         if normalized is None:
             return None
-        payload: dict[str, object] = {"state": normalized, "source": "jarvis_client"}
+        payload: dict[str, object] = {"state": normalized, "source": "argus_client"}
         if str(value).strip().lower() != normalized:
             payload["reason"] = str(value)
         return self._envelope("state", payload)
@@ -109,7 +109,7 @@ class JarvisEventMapper:
         """Map conversation prefixes to transcript and all other text to log."""
         with self._lock:
             message = str(text)
-            for prefix, speaker in (("You: ", "user"), ("Jarvis: ", "assistant")):
+            for prefix, speaker in (("You: ", "user"), ("Argus: ", "assistant")):
                 if message.startswith(prefix):
                     turn_id = self._active_turn(start_new=speaker == "user" and self._turn_closed)
                     event = self._envelope("transcript", {
@@ -123,12 +123,12 @@ class JarvisEventMapper:
                     return event
 
             level = "info"
-            source = "jarvis"
+            source = "argus"
             for prefix, mapped_level, mapped_source in (
-                ("ERR: ", "error", "jarvis"),
-                ("ERROR: ", "error", "jarvis"),
-                ("WARN: ", "warning", "jarvis"),
-                ("WARNING: ", "warning", "jarvis"),
+                ("ERR: ", "error", "argus"),
+                ("ERROR: ", "error", "argus"),
+                ("WARN: ", "warning", "argus"),
+                ("WARNING: ", "warning", "argus"),
                 ("SYS: ", "info", "system"),
             ):
                 if message.startswith(prefix):

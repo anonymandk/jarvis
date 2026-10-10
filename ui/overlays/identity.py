@@ -10,7 +10,7 @@ globals().update({key: value for key, value in vars(_runtime).items() if not key
 from .base import _OverlayBase
 
 class NameSignInOverlay(_OverlayBase):
-    """Overlay that asks the user for their name so JARVIS can address them personally."""
+    """Overlay that asks the user for their name so ARGUS can address them personally."""
     done = pyqtSignal(str)   # emits the entered name (or "" if skipped)
 
     def __init__(self, parent=None, existing_name: str = ""):
@@ -38,7 +38,7 @@ class NameSignInOverlay(_OverlayBase):
             return w
 
         title_txt = "◈  UPDATE IDENTITY" if existing_name else "◈  IDENTITY PROTOCOL"
-        sub_txt   = f"Currently: {existing_name}" if existing_name else "JARVIS needs to know who it's talking to."
+        sub_txt   = f"Currently: {existing_name}" if existing_name else "ARGUS needs to know who it's talking to."
         layout.addWidget(_lbl(title_txt, TOKENS.font_sizes["legacy_13"], True))
         layout.addWidget(_lbl(sub_txt, TOKENS.font_sizes["legacy_9"], color=C.PRI_DIM))
         layout.addSpacing(TOKENS.spacing["legacy_4"])
@@ -119,7 +119,7 @@ class NameSignInOverlay(_OverlayBase):
 
 
 class VoiceSelectOverlay(_OverlayBase):
-    """Popup overlay for selecting JARVIS voice (used in first-run setup flow)."""
+    """Popup overlay for selecting ARGUS voice (used in first-run setup flow)."""
     done = pyqtSignal(str)   # emits selected voice value (e.g. "puck")
 
     def __init__(self, parent=None, current_voice: str = "puck"):
@@ -149,7 +149,7 @@ class VoiceSelectOverlay(_OverlayBase):
             return w
 
         layout.addWidget(_lbl("◈  VOICE SELECTION", TOKENS.font_sizes["legacy_13"], True))
-        layout.addWidget(_lbl("Choose the voice JARVIS will speak with.", TOKENS.font_sizes["legacy_9"], color=C.PRI_DIM))
+        layout.addWidget(_lbl("Choose the voice ARGUS will speak with.", TOKENS.font_sizes["legacy_9"], color=C.PRI_DIM))
         layout.addSpacing(TOKENS.spacing["legacy_4"])
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)

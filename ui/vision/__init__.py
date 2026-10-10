@@ -8,13 +8,13 @@ _runtime = importlib.import_module("ui._runtime")
 globals().update({key: value for key, value in vars(_runtime).items() if not key.startswith("__")})
 
 class VisionPreviewWindow(QWidget):
-    """Small draggable live preview shown while JARVIS is using vision."""
+    """Small draggable live preview shown while ARGUS is using vision."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setObjectName("visionPreview")
-        self.setAccessibleName("JARVIS live vision preview")
+        self.setAccessibleName("ARGUS live vision preview")
         self.setFixedSize(360, 248)
         self._source = "screen"
         self._drag_origin_global = None

@@ -112,18 +112,18 @@ class LiveDispatchApprovalTests(unittest.TestCase):
         import main
 
         self.main = main
-        self.jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        self.jarvis.ui = SimpleNamespace(
+        self.argus = main.ArgusLive.__new__(main.ArgusLive)
+        self.argus.ui = SimpleNamespace(
             operational_ready=True,
             muted=False,
             set_state=MagicMock(),
             write_log=MagicMock(),
         )
-        self.jarvis.cloud_safe = False
-        self.jarvis._current_input_transcript = ""
-        self.jarvis._last_input_transcript = ""
-        self.jarvis._last_input_transcript_at = 0.0
-        self.env = patch.dict(os.environ, {"JARVIS_QA_MODE": "0"}, clear=False)
+        self.argus.cloud_safe = False
+        self.argus._current_input_transcript = ""
+        self.argus._last_input_transcript = ""
+        self.argus._last_input_transcript_at = 0.0
+        self.env = patch.dict(os.environ, {"ARGUS_QA_MODE": "0"}, clear=False)
         self.env.start()
 
     def tearDown(self):
@@ -134,43 +134,43 @@ class LiveDispatchApprovalTests(unittest.TestCase):
         return SimpleNamespace(name=name, args=args, id=call_id, call_id=None)
 
     def _user_turn(self, text):
-        manager = self.jarvis._tool_approvals()
+        manager = self.argus._tool_approvals()
         manager.begin_user_turn(text)
         manager.finish_user_turn(text)
 
     def test_dev_agent_is_queued_then_runs_after_later_confirmation(self):
         args = {"description": "Create a demo app", "project_name": "demo"}
         with patch.object(self.main, "dev_agent", return_value="project created") as build:
-            first = asyncio.run(self.jarvis._execute_tool(self._call("dev_agent", args)))
+            first = asyncio.run(self.argus._execute_tool(self._call("dev_agent", args)))
             build.assert_not_called()
             self.assertIn("No action was performed", first.response["result"])
 
             self._user_turn("yes")
-            second = asyncio.run(self.jarvis._execute_tool(self._call("dev_agent", args)))
+            second = asyncio.run(self.argus._execute_tool(self._call("dev_agent", args)))
             self.assertEqual(second.response["result"], "project created")
             build.assert_called_once()
 
     def test_computer_control_mutation_is_queued_before_dispatch(self):
         args = {"action": "type", "text": "hello"}
         with patch.object(self.main, "computer_control", return_value="typed") as control:
-            first = asyncio.run(self.jarvis._execute_tool(self._call("computer_control", args)))
+            first = asyncio.run(self.argus._execute_tool(self._call("computer_control", args)))
             control.assert_not_called()
             self.assertIn("No action was performed", first.response["result"])
 
             self._user_turn("yes")
-            second = asyncio.run(self.jarvis._execute_tool(self._call("computer_control", args)))
+            second = asyncio.run(self.argus._execute_tool(self._call("computer_control", args)))
             self.assertEqual(second.response["result"], "typed")
             control.assert_called_once()
 
     def test_power_tool_confirmation_is_code_bound_not_model_boolean(self):
         args = {"action": "shutdown", "description": "shutdown my computer"}
         with patch.object(self.main, "computer_settings", return_value="shutdown requested") as power:
-            first = asyncio.run(self.jarvis._execute_tool(self._call("computer_settings", args)))
+            first = asyncio.run(self.argus._execute_tool(self._call("computer_settings", args)))
             power.assert_not_called()
             self.assertIn("No action was performed", first.response["result"])
 
             self._user_turn("confirm")
-            second = asyncio.run(self.jarvis._execute_tool(self._call("computer_settings", args)))
+            second = asyncio.run(self.argus._execute_tool(self._call("computer_settings", args)))
             self.assertEqual(second.response["result"], "shutdown requested")
             self.assertEqual(power.call_args.kwargs["parameters"]["confirmed"], "yes")
 
@@ -183,12 +183,12 @@ class LiveDispatchApprovalTests(unittest.TestCase):
         }
         self._user_turn("Tell Alice I will be 5 minutes late")
         with patch.object(self.main, "send_message", return_value="Message sent") as send:
-            first = asyncio.run(self.jarvis._execute_tool(self._call("send_message", args)))
+            first = asyncio.run(self.argus._execute_tool(self._call("send_message", args)))
             send.assert_not_called()
             self.assertIn("No action was performed", first.response["result"])
 
             self._user_turn("yes")
-            second = asyncio.run(self.jarvis._execute_tool(self._call("send_message", args)))
+            second = asyncio.run(self.argus._execute_tool(self._call("send_message", args)))
             self.assertEqual(second.response["result"], "Message sent")
             send.assert_called_once()
 
@@ -201,7 +201,7 @@ class LiveDispatchApprovalTests(unittest.TestCase):
         }
         self._user_turn("Send Alice on WhatsApp: I will be 5 minutes late")
         with patch.object(self.main, "send_message", return_value="Message sent") as send:
-            result = asyncio.run(self.jarvis._execute_tool(self._call("send_message", args)))
+            result = asyncio.run(self.argus._execute_tool(self._call("send_message", args)))
         self.assertEqual(result.response["result"], "Message sent")
         send.assert_called_once()
 
@@ -229,19 +229,19 @@ class LiveDispatchApprovalTests(unittest.TestCase):
 
         with patch.object(self.main, "email_control", side_effect=fake_email):
             self._user_turn("prepare the email")
-            prepared = asyncio.run(self.jarvis._execute_tool(self._call(
+            prepared = asyncio.run(self.argus._execute_tool(self._call(
                 "email_control", {"action": "prepare", "to": draft["to"]}
             )))
             self.assertIn("EMAIL_APPROVAL_REQUIRED", prepared.response["result"])
 
-            same_turn = asyncio.run(self.jarvis._execute_tool(self._call(
+            same_turn = asyncio.run(self.argus._execute_tool(self._call(
                 "email_control", {"action": "approve", "provider": "gmail"}
             )))
             self.assertIn("later user turn", same_turn.response["result"])
             self.assertEqual(actions, ["prepare"])
 
             self._user_turn("yes")
-            sent = asyncio.run(self.jarvis._execute_tool(self._call(
+            sent = asyncio.run(self.argus._execute_tool(self._call(
                 "email_control", {"action": "approve", "provider": "gmail"}
             )))
             self.assertEqual(sent.response["result"], "Email sent")
@@ -271,19 +271,19 @@ class LiveDispatchApprovalTests(unittest.TestCase):
 
         with patch.object(self.main, "prepare_message_reply", side_effect=fake_reply):
             self._user_turn("prepare a reply")
-            prepared = asyncio.run(self.jarvis._execute_tool(self._call(
+            prepared = asyncio.run(self.argus._execute_tool(self._call(
                 "prepare_message_reply", {"action": "prepare", **draft}
             )))
             self.assertIn("MESSAGE_APPROVAL_REQUIRED", prepared.response["result"])
 
-            same_turn = asyncio.run(self.jarvis._execute_tool(self._call(
+            same_turn = asyncio.run(self.argus._execute_tool(self._call(
                 "prepare_message_reply", {"action": "approve"}
             )))
             self.assertIn("later user turn", same_turn.response["result"])
             self.assertEqual(actions, ["prepare"])
 
             self._user_turn("sim, pode enviar")
-            sent = asyncio.run(self.jarvis._execute_tool(self._call(
+            sent = asyncio.run(self.argus._execute_tool(self._call(
                 "prepare_message_reply", {"action": "approve"}
             )))
             self.assertEqual(sent.response["result"], "Message sent")

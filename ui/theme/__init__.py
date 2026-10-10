@@ -83,7 +83,7 @@ def qcol(h: str, a: int = 255) -> QColor:
 # ---------------------------------------------------------------------------
 
 class ThemeManager:
-    """Manages color themes for the JARVIS UI."""
+    """Manages color themes for the ARGUS UI."""
 
     _COLOR_KEYS = (
         "BG", "PANEL", "PANEL2", "DARK", "DARK2", "BAR_BG", "CARD", "CARD_B",

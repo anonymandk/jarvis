@@ -1,4 +1,4 @@
-"""Compatibility facade for the JARVIS desktop UI package.
+"""Compatibility facade for the ARGUS desktop UI package.
 
 The original single-file implementation is kept behind a transparent module
 proxy while its components move into responsibility-based modules. Existing

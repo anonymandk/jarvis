@@ -10,7 +10,7 @@ globals().update({key: value for key, value in vars(_runtime).items() if not key
 class _MainWindowCommandMixin:
     def _handle_ui_command(self, action: str):
         action = str(action or "").strip().lower()
-        if action in {"quit jarvis", "quit_jarvis"}:
+        if action in {"quit argus", "quit_argus"}:
             self._request_quit()
             return True
         if action == "open_command_center":
@@ -134,7 +134,7 @@ class _MainWindowCommandMixin:
             )
             threading.Thread(target=self.on_text_command, args=(prompt,), daemon=True).start()
         else:
-            self._log.append_log(f"JARVIS: {announcement}")
+            self._log.append_log(f"ARGUS: {announcement}")
 
     def _toggle_left_panel(self):
         sizes = self._splitter.sizes()

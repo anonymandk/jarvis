@@ -1,8 +1,8 @@
 "use client";
 
-import type { JarvisState } from "@/hooks/use-jarvis-socket";
+import type { ArgusState } from "@/hooks/use-argus-socket";
 
-const STATE_LABELS: Record<JarvisState, string> = {
+const STATE_LABELS: Record<ArgusState, string> = {
   idle: "Em espera",
   listening: "Ouvindo",
   processing: "Processando",
@@ -12,12 +12,12 @@ const STATE_LABELS: Record<JarvisState, string> = {
   muted: "Microfone silenciado",
 };
 
-export function Reactor({ state }: { state: JarvisState }) {
+export function Reactor({ state }: { state: ArgusState }) {
   return (
     <div
       key={state}
       className={`reactor reactor-${state} is-transitioning`}
-      aria-label={`Núcleo JARVIS. Estado: ${STATE_LABELS[state]}`}
+      aria-label={`Núcleo ARGUS. Estado: ${STATE_LABELS[state]}`}
       role="img"
     >
       <div className="reactor-orbit orbit-a" aria-hidden="true" />

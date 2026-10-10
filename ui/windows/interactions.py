@@ -82,7 +82,7 @@ class _MainWindowInteractionMixin:
         cat  = _file_category(p)
         icon, _ = _FILE_ICONS.get(cat, _FILE_ICONS["unknown"])
         size = _fmt_size(p.stat().st_size)
-        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell JARVIS what to do with it")
+        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell ARGUS what to do with it")
         self._log.append_log(f"FILE: {p.name} ({size}) loaded")
         if self.on_text_command:
             msg = (
@@ -189,14 +189,14 @@ class _MainWindowInteractionMixin:
                 "show the command center", "open command ceneter", "open the command ceneter",
             }:
                 self._set_command_center(True)
-                self._log.append_log("JARVIS: Command Center is open.")
+                self._log.append_log("ARGUS: Command Center is open.")
                 return
             if normalized in {
                 "close command center", "close the command center", "hide command center",
                 "hide the command center", "return to focus view",
             }:
                 self._set_command_center(False)
-                self._log.append_log("JARVIS: Returning to focus view.")
+                self._log.append_log("ARGUS: Returning to focus view.")
                 return
             if self.on_text_command:
                 def _dispatch():
@@ -207,11 +207,11 @@ class _MainWindowInteractionMixin:
                 threading.Thread(target=_dispatch, daemon=True).start()
         except Exception as exc:
             # Exceptions escaping a PyQt signal handler can abort the process.
-            # Keep JARVIS alive and surface the problem in its own log instead.
+            # Keep ARGUS alive and surface the problem in its own log instead.
             try:
                 self._log.append_log(f"ERR: Message processing failed: {exc}")
             except Exception:
-                print(f"[JARVIS] Message processing failed: {exc}")
+                print(f"[ARGUS] Message processing failed: {exc}")
 
     def _apply_state(self, state: str):
         state_key = str(state or "idle").strip().lower()

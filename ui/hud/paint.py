@@ -1,4 +1,4 @@
-"""Canvas painter for the JARVIS reactor HUD."""
+"""Canvas painter for the ARGUS reactor HUD."""
 
 from __future__ import annotations
 

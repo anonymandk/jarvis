@@ -11,7 +11,7 @@ class _MainWindowLayoutMixin:
     def _build_header(self) -> QWidget:
         w = QWidget()
         w.setObjectName("appHeader")
-        w.setAccessibleName("Barra superior JARVIS")
+        w.setAccessibleName("Barra superior ARGUS")
         w.setFixedHeight(TOKENS.layout_sizes["desktop_header_height"])
         w.setStyleSheet(f"""
             QWidget#appHeader {{
@@ -29,7 +29,7 @@ class _MainWindowLayoutMixin:
         brand_col = QVBoxLayout()
         brand_col.setSpacing(TOKENS.spacing["xxs"])
         brand_col.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        self._header_brand_lbl = QLabel("JARVIS")
+        self._header_brand_lbl = QLabel("ARGUS")
         self._header_brand_lbl.setObjectName("headerTitle")
         self._header_brand_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["title"], QFont.Weight.DemiBold))
         self._header_brand_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
@@ -43,7 +43,7 @@ class _MainWindowLayoutMixin:
         lay.addStretch()
 
         self._header_state_lbl = QLabel("◇  Em espera")
-        self._header_state_lbl.setAccessibleName("Estado atual do JARVIS")
+        self._header_state_lbl.setAccessibleName("Estado atual do ARGUS")
         self._header_state_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["body"], QFont.Weight.DemiBold))
         self._header_state_lbl.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         lay.addWidget(self._header_state_lbl)
@@ -120,7 +120,7 @@ class _MainWindowLayoutMixin:
 
         mark = QLabel("J")
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setAccessibleName("JARVIS")
+        mark.setAccessibleName("ARGUS")
         mark.setFont(QFont(DISPLAY_FONT, TOKENS.font_sizes["title"], QFont.Weight.DemiBold))
         mark.setStyleSheet(f"color: {C.PRI}; background: transparent;")
         layout.addWidget(mark)
@@ -507,8 +507,8 @@ class _MainWindowLayoutMixin:
     def _build_footer(self) -> QWidget:
         w = QWidget()
         self._dock_frame = w
-        w.setObjectName("JarvisCommandRail")
-        w.setAccessibleName("Barra de comandos do JARVIS")
+        w.setObjectName("ArgusCommandRail")
+        w.setAccessibleName("Barra de comandos do ARGUS")
         w.setFixedHeight(72)
         lay = QHBoxLayout(w)
         lay.setContentsMargins(TOKENS.spacing["legacy_14"], TOKENS.spacing["legacy_8"], TOKENS.spacing["legacy_14"], TOKENS.spacing["legacy_8"])
@@ -527,9 +527,9 @@ class _MainWindowLayoutMixin:
         title_row.setSpacing(TOKENS.spacing["legacy_7"])
         self._rail_status_dot = QLabel("●")
         self._rail_status_dot.setFont(QFont(TECH_FONT, TOKENS.font_sizes["legacy_7"], QFont.Weight.Medium))
-        self._rail_status_dot.setAccessibleName("JARVIS status indicator")
+        self._rail_status_dot.setAccessibleName("ARGUS status indicator")
         title_row.addWidget(self._rail_status_dot)
-        self._command_title_lbl = QLabel("JARVIS")
+        self._command_title_lbl = QLabel("ARGUS")
         self._command_title_lbl.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         title_row.addWidget(self._command_title_lbl)
         title_row.addStretch()
@@ -537,7 +537,7 @@ class _MainWindowLayoutMixin:
 
         self._rail_mode_lbl = QLabel("Em espera")
         self._rail_mode_lbl.setFont(QFont(TECH_FONT, TOKENS.font_sizes["caption"], QFont.Weight.Medium))
-        self._rail_mode_lbl.setAccessibleName("Estado atual do JARVIS")
+        self._rail_mode_lbl.setAccessibleName("Estado atual do ARGUS")
         anchor_lay.addWidget(self._rail_mode_lbl)
         lay.addWidget(anchor)
 
@@ -553,7 +553,7 @@ class _MainWindowLayoutMixin:
         # ── One continuous control track, not a row of unrelated cards ──────
         track = QFrame(w)
         track.setObjectName("CommandControlTrack")
-        track.setAccessibleName("Controles do JARVIS")
+        track.setAccessibleName("Controles do ARGUS")
         self._rail_control_track = track
         track_lay = QHBoxLayout(track)
         track_lay.setContentsMargins(TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_2"], TOKENS.spacing["legacy_2"])
@@ -584,15 +584,15 @@ class _MainWindowLayoutMixin:
         track_lay.addWidget(_track_separator())
 
         self._tts_btn = _ctrl_btn("Voz", 124)
-        self._tts_btn.setToolTip("Alterar a voz do JARVIS")
-        self._tts_btn.setAccessibleName("Alterar voz do JARVIS")
+        self._tts_btn.setToolTip("Alterar a voz do ARGUS")
+        self._tts_btn.setAccessibleName("Alterar voz do ARGUS")
         self._tts_btn.clicked.connect(self._show_tts_select)
         self._update_tts_btn()
         track_lay.addWidget(self._tts_btn)
         track_lay.addWidget(_track_separator())
 
         self._name_btn = _ctrl_btn("Nome", 112)
-        self._name_btn.setToolTip("Alterar como JARVIS chama você")
+        self._name_btn.setToolTip("Alterar como ARGUS chama você")
         self._name_btn.setAccessibleName("Alterar nome do operador")
         self._name_btn.clicked.connect(self._show_name_signin)
         self._update_name_btn()
@@ -635,9 +635,9 @@ class _MainWindowLayoutMixin:
         mirror_lay.addWidget(help_btn)
 
         self._quit_btn = QPushButton("Sair")
-        self._quit_btn.setObjectName("JarvisQuitButton")
-        self._quit_btn.setAccessibleName("Sair do JARVIS")
-        self._quit_btn.setToolTip("Sair do JARVIS")
+        self._quit_btn.setObjectName("ArgusQuitButton")
+        self._quit_btn.setAccessibleName("Sair do ARGUS")
+        self._quit_btn.setToolTip("Sair do ARGUS")
         self._quit_btn.setFixedSize(72, 44)
         self._quit_btn.setFont(QFont(UI_FONT, TOKENS.font_sizes["caption"], QFont.Weight.DemiBold))
         self._quit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -652,8 +652,8 @@ class _MainWindowLayoutMixin:
         """Build the quiet, persistent creator signature beneath the shell."""
         strip = QWidget()
         self._maker_signature = strip
-        strip.setObjectName("JarvisMakerSignature")
-        strip.setAccessibleName("JARVIS creator trademark")
+        strip.setObjectName("ArgusMakerSignature")
+        strip.setAccessibleName("ARGUS creator trademark")
         strip.setFixedHeight(20)
 
         lay = QHBoxLayout(strip)
@@ -667,7 +667,7 @@ class _MainWindowLayoutMixin:
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._maker_signature_lbl.setAccessibleName("amd.creationz trademark")
-        self._maker_signature_lbl.setToolTip("JARVIS interface by amd.creationz")
+        self._maker_signature_lbl.setToolTip("ARGUS interface by amd.creationz")
         lay.addWidget(self._maker_signature_lbl)
 
         self._style_maker_signature()

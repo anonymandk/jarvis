@@ -120,7 +120,7 @@ class _MainWindowStartupMixin:
             }}
         """)
         central = QWidget()
-        central.setObjectName("jarvisRoot")
+        central.setObjectName("argusRoot")
         central.setStyleSheet(f"background: {C.BG};")
         self.setCentralWidget(central)
 
@@ -167,7 +167,7 @@ class _MainWindowStartupMixin:
         )
         self._orb.setMinimumSize(216, 216)
         self._orb.setMaximumSize(320, 320)
-        self._core_title = QLabel("JARVIS")
+        self._core_title = QLabel("ARGUS")
         self._core_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._core_title.setFont(QFont(UI_FONT, TOKENS.font_sizes["title"], QFont.Weight.DemiBold))
         self._core_title.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
@@ -176,7 +176,7 @@ class _MainWindowStartupMixin:
         ai_core_lay.addWidget(self._orb, alignment=Qt.AlignmentFlag.AlignHCenter, stretch=5)
         self._core_state = QLabel("◇  Em espera")
         self._core_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._core_state.setAccessibleName("Estado atual do JARVIS")
+        self._core_state.setAccessibleName("Estado atual do ARGUS")
         self._core_state.setFont(QFont(UI_FONT, TOKENS.font_sizes["section"], QFont.Weight.DemiBold))
         ai_core_lay.addWidget(self._core_state)
         self._error_guidance = QLabel(
@@ -362,7 +362,7 @@ class _MainWindowStartupMixin:
         try:
             from pathlib import Path
             import json
-            cfg_file = Path.home() / ".jarvis" / "config" / "settings.json"
+            cfg_file = Path.home() / ".argus" / "config" / "settings.json"
             if cfg_file.exists():
                 cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
                 saved_theme = cfg.get("theme", "")
@@ -453,7 +453,7 @@ class _MainWindowStartupMixin:
                     self._vision_preview.stop()
                 self.hide()
                 self._tray.showMessage(
-                    "JARVIS", "Running in background. Click tray icon to restore.",
+                    "ARGUS", "Running in background. Click tray icon to restore.",
                     QSystemTrayIcon.MessageIcon.Information, 2000
                 )
                 return
@@ -491,7 +491,7 @@ class _MainWindowStartupMixin:
             QMenu::item:selected {{ background: {C.PRI_GHO}; color: {C.PRI}; }}
         """)
 
-        show_action = QAction("Show JARVIS", self)
+        show_action = QAction("Show ARGUS", self)
         show_action.triggered.connect(self._tray_show)
         tray_menu.addAction(show_action)
 
@@ -501,7 +501,7 @@ class _MainWindowStartupMixin:
 
         tray_menu.addSeparator()
 
-        quit_action = QAction("Quit JARVIS", self)
+        quit_action = QAction("Quit ARGUS", self)
         quit_action.triggered.connect(self._tray_quit)
         tray_menu.addAction(quit_action)
 
@@ -518,7 +518,7 @@ class _MainWindowStartupMixin:
         self._request_quit()
 
     def _request_quit(self):
-        """Use one clean shutdown path for tray, UI, and JARVIS self-quit."""
+        """Use one clean shutdown path for tray, UI, and ARGUS self-quit."""
         self._force_quit = True
         try:
             if self.on_quit_requested:

@@ -176,7 +176,7 @@ class SettingsOverlay(_OverlayBase):
                  replay_intro: bool = False,
                  current_motion_preference: str = "system"):
         super().__init__(parent)
-        self.setAccessibleName("Configurações do JARVIS")
+        self.setAccessibleName("Configurações do ARGUS")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             SettingsOverlay {{

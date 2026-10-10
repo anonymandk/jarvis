@@ -119,7 +119,7 @@ class _MainWindowStyleMixin:
         rail = getattr(self, "_dock_frame", None)
         if rail is not None:
             rail.setStyleSheet(f"""
-                QWidget#JarvisCommandRail {{
+                QWidget#ArgusCommandRail {{
                     background: {C.BAR_BG};
                     border-top: 1px solid {C.BORDER_B};
                     border-bottom: 1px solid {C.BORDER};
@@ -152,7 +152,7 @@ class _MainWindowStyleMixin:
         strip = getattr(self, "_maker_signature", None)
         if strip is not None:
             strip.setStyleSheet(f"""
-                QWidget#JarvisMakerSignature {{
+                QWidget#ArgusMakerSignature {{
                     background: {C.BG};
                     border: none;
                 }}

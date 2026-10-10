@@ -18,9 +18,9 @@ an isolated workspace:
 
 ```bash
 export QT_QPA_PLATFORM=offscreen
-export JARVIS_QA_MODE=1
-export JARVIS_QA_WORKSPACE="$PWD/.qa-artifacts/local"
-mkdir -p "$JARVIS_QA_WORKSPACE"
+export ARGUS_QA_MODE=1
+export ARGUS_QA_WORKSPACE="$PWD/.qa-artifacts/local"
+mkdir -p "$ARGUS_QA_WORKSPACE"
 python -m pytest -q tests
 python scripts/qa.py automated
 ```
@@ -35,9 +35,9 @@ PowerShell equivalent for the same environment:
 
 ```powershell
 $env:QT_QPA_PLATFORM = "offscreen"
-$env:JARVIS_QA_MODE = "1"
-$env:JARVIS_QA_WORKSPACE = Join-Path $PWD ".qa-artifacts/local"
-New-Item -ItemType Directory -Force $env:JARVIS_QA_WORKSPACE | Out-Null
+$env:ARGUS_QA_MODE = "1"
+$env:ARGUS_QA_WORKSPACE = Join-Path $PWD ".qa-artifacts/local"
+New-Item -ItemType Directory -Force $env:ARGUS_QA_WORKSPACE | Out-Null
 python -m pytest -q tests
 python scripts/qa.py automated
 ```

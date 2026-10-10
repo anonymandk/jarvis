@@ -24,7 +24,7 @@ INTRO_SEQUENCE_VERSION = 5
 INTRO_PERFORMANCE_VERSION = "pcm-v1"
 INTRO_MASTERING_VERSION = "peak-safe-v1"
 INTRO_SAMPLE_RATE = 24_000
-INTRO_VOICE_CACHE_DIR = Path.home() / ".jarvis" / "cache" / "intro"
+INTRO_VOICE_CACHE_DIR = Path.home() / ".argus" / "cache" / "intro"
 
 _intro_tts_renderer: Callable | None = None
 _intro_tts_segmented_renderer: Callable | None = None
@@ -40,7 +40,7 @@ def _configure_intro_tts_renderers(
     _intro_tts_segmented_renderer = segmented_renderer
 
 _GREETING_CAPTIONS = (
-    "JARVIS online.",
+    "ARGUS online.",
     "Your voice and text requests use the same conversation.",
 )
 
@@ -64,17 +64,17 @@ def _ui_symbol(name: str, default=None):
 def _daily_greeting(now: datetime | None = None) -> str:
     hour = (now or datetime.now()).hour
     if 5 <= hour < 12:
-        return "Good morning. I am JARVIS."
+        return "Good morning. I am ARGUS."
     if 12 <= hour < 18:
-        return "Good afternoon. I am JARVIS."
-    return "Good evening. I am JARVIS."
+        return "Good afternoon. I am ARGUS."
+    return "Good evening. I am ARGUS."
 
 
 def _tour_chapters(now: datetime | None = None) -> tuple[IntroChapter, ...]:
     greeting = _daily_greeting(now)
     copy = (
         ("core", "REATOR", -1, f"{greeting} Seu assistente pessoal ajuda você a trabalhar com clareza e foco."),
-        ("subtitles", "LEGENDAS", -1, "Falas e legendas aparecem juntas para acompanhar cada resposta enquanto JARVIS escuta."),
+        ("subtitles", "LEGENDAS", -1, "Falas e legendas aparecem juntas para acompanhar cada resposta enquanto ARGUS escuta."),
         ("header", "ESTADO", -1, "O cabeçalho mostra conexão e controles disponíveis, sem sugerir medições que não existem."),
         ("awareness", "CONSCIÊNCIA", -1, "Consciência resume informações disponíveis nesta sessão, sem criar diagnósticos ou telemetria fictícia."),
         ("mission_comms", "COMUNICAÇÃO", 0, "Comunicações mantém a conversa visível. Voz e texto seguem o mesmo fluxo, com digitação pronta."),
@@ -85,7 +85,7 @@ def _tour_chapters(now: datetime | None = None) -> tuple[IntroChapter, ...]:
         ("core", "REATOR", -1, "O reator central reflete meu estado atual; seus movimentos respondem à atividade, sem fingir medições ocultas."),
         ("dock", "COMANDOS", 0, "A barra de comandos permite silenciar o microfone, trocar voz, ajustar aparência, abrir configurações ou sair."),
         ("header", "PREFERÊNCIAS", -1, "Qualidade gráfica menor ajuda em computadores modestos. Movimento reduzido respeita sua preferência e evita animações desnecessárias."),
-        ("subtitles", "TRANSPARÊNCIA", -1, "Se uma resposta não estiver disponível, JARVIS informa com clareza. Latência e níveis inexistentes não são inventados."),
+        ("subtitles", "TRANSPARÊNCIA", -1, "Se uma resposta não estiver disponível, ARGUS informa com clareza. Latência e níveis inexistentes não são inventados."),
         ("handoff", "PRONTO", -1, "Pronto para começar: peça uma pesquisa, lembrete, tarefa com arquivos ou ação no computador usando palavras simples."),
     )
     return tuple(IntroChapter(*chapter) for chapter in copy)
@@ -408,7 +408,7 @@ class FirstRunIntroOverlay(QWidget):
     ):
         super().__init__(parent)
         self.setObjectName("FirstRunIntroOverlay")
-        self.setAccessibleName("JARVIS first-run introduction")
+        self.setAccessibleName("ARGUS first-run introduction")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._chapters = tuple(chapters or ())
@@ -577,7 +577,7 @@ class FirstRunIntroOverlay(QWidget):
 
         self._speech_thread = threading.Thread(
             target=_play_cached_or_render,
-            name="jarvis-intro-audio",
+            name="argus-intro-audio",
             daemon=True,
         )
         self._speech_thread.start()
