@@ -1,4 +1,4 @@
-"""Simple in-process metrics collector for JARVIS.
+"""Simple in-process metrics collector for ARGUS.
 
 No external dependencies required.
 

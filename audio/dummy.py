@@ -16,7 +16,7 @@ from typing import Callable, Optional
 
 from audio.base import AudioConfig, AudioInterface
 
-logger = logging.getLogger("jarvis.audio.dummy")
+logger = logging.getLogger("argus.audio.dummy")
 
 
 class DummyAudio(AudioInterface):
@@ -83,12 +83,12 @@ class DummyAudio(AudioInterface):
         In dummy mode, we generate silence or accept injected audio.
         """
         self._input_started = True
-        logger.info("[JARVIS] 🎤 Dummy mic started (simulated)")
+        logger.info("[ARGUS] 🎤 Dummy mic started (simulated)")
 
     async def start_output(self) -> None:
         """Simulate starting audio output."""
         self._output_started = True
-        logger.info("[JARVIS] 🔊 Dummy playback started (simulated)")
+        logger.info("[ARGUS] 🔊 Dummy playback started (simulated)")
 
     async def stop(self) -> None:
         """Stop simulated audio."""
@@ -104,7 +104,7 @@ class DummyAudio(AudioInterface):
             except asyncio.CancelledError:
                 pass
 
-        logger.info("[JARVIS] 🔇 Dummy audio stopped")
+        logger.info("[ARGUS] 🔇 Dummy audio stopped")
 
     def put_audio(self, chunk: bytes) -> None:
         """Queue audio chunk for simulated playback."""

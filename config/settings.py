@@ -1,7 +1,7 @@
-"""Central configuration for JARVIS.
+"""Central configuration for ARGUS.
 
 Loads from (in order of precedence):
-1) Environment variables (prefixed with JARVIS_)
+1) Environment variables (prefixed with ARGUS_)
 2) config/api_keys.json (legacy)
 3) Defaults defined in code
 """
@@ -31,14 +31,14 @@ class LLMSettings(BaseSettings):
     ollama_model: Optional[str] = None
 
     class Config:
-        env_prefix = "JARVIS_LLM_"
+        env_prefix = "ARGUS_LLM_"
 
 
 class VoiceSettings(BaseSettings):
     name: str = "puck"
 
     class Config:
-        env_prefix = "JARVIS_VOICE_"
+        env_prefix = "ARGUS_VOICE_"
 
 
 class AudioSettings(BaseSettings):
@@ -50,7 +50,7 @@ class AudioSettings(BaseSettings):
     backend: Literal["auto", "sounddevice", "dummy"] = "auto"
 
     class Config:
-        env_prefix = "JARVIS_AUDIO_"
+        env_prefix = "ARGUS_AUDIO_"
 
 
 class FeaturesSettings(BaseSettings):
@@ -59,7 +59,7 @@ class FeaturesSettings(BaseSettings):
     enabled_plugins: List[str] = []
 
     class Config:
-        env_prefix = "JARVIS_FEATURES_"
+        env_prefix = "ARGUS_FEATURES_"
 
 
 class RuntimeSettings(BaseSettings):
@@ -82,7 +82,7 @@ class RuntimeSettings(BaseSettings):
     # Set 0 to disable jitter entirely (keeps deterministic delay).
 
     class Config:
-        env_prefix = "JARVIS_RUNTIME_"
+        env_prefix = "ARGUS_RUNTIME_"
 
 
 class Settings(BaseSettings):
@@ -146,19 +146,19 @@ class Settings(BaseSettings):
         if not isinstance(v, dict):
             v = {}
 
-        runtime_kw = os.environ.get("JARVIS_TRIAL_KEYWORD")
+        runtime_kw = os.environ.get("ARGUS_TRIAL_KEYWORD")
         if runtime_kw:
-            runtime_seconds = os.environ.get("JARVIS_RUNTIME_SECONDS", "3600")
+            runtime_seconds = os.environ.get("ARGUS_RUNTIME_SECONDS", "3600")
             try:
                 v.setdefault("runtime_limit_seconds", int(runtime_seconds))
             except Exception:
                 pass
 
-        locked_secret = os.environ.get("JARVIS_LOCKED_KEY_SECRET")
+        locked_secret = os.environ.get("ARGUS_LOCKED_KEY_SECRET")
         if locked_secret:
             v.setdefault("required_unlock_secret", locked_secret.strip())
 
-        locked_vol = os.environ.get("JARVIS_LOCKED_VOLUME")
+        locked_vol = os.environ.get("ARGUS_LOCKED_VOLUME")
         if locked_vol:
             mount_path = f"/Volumes/{locked_vol}/unlock.key"
             v.setdefault("required_unlock_path", mount_path)

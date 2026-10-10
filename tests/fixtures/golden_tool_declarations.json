@@ -292,7 +292,7 @@
         },
         "theme": {
           "type": "STRING",
-          "description": "Visual theme: jarvis_minimal | editorial | arc_reactor | executive | platinum. Default: jarvis_minimal."
+          "description": "Visual theme: argus_minimal | editorial | arc_reactor | executive | platinum. Default: argus_minimal."
         },
         "appearance": {
           "type": "STRING",
@@ -301,7 +301,7 @@
             "light",
             "dark"
           ],
-          "description": "Overall slide appearance. Honor light or dark when requested; auto uses the restrained dark JARVIS style."
+          "description": "Overall slide appearance. Honor light or dark when requested; auto uses the restrained dark ARGUS style."
         },
         "transition": {
           "type": "STRING",
@@ -781,7 +781,7 @@
   },
   {
     "name": "graphics_quality",
-    "description": "Changes JARVIS rendering quality between low, medium, and high.",
+    "description": "Changes ARGUS rendering quality between low, medium, and high.",
     "parameters": {
       "type": "OBJECT",
       "properties": {
@@ -801,8 +801,8 @@
     }
   },
   {
-    "name": "jarvis_ui_control",
-    "description": "Changes JARVIS's own interface. Use when the user asks to open or close the Command Center, change the theme or graphics quality, open settings, enter compact mode, toggle fullscreen, or show shortcuts.",
+    "name": "argus_ui_control",
+    "description": "Changes ARGUS's own interface. Use when the user asks to open or close the Command Center, change the theme or graphics quality, open settings, enter compact mode, toggle fullscreen, or show shortcuts.",
     "parameters": {
       "type": "OBJECT",
       "properties": {

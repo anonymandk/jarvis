@@ -1,4 +1,4 @@
-"""Sounddevice-based audio implementation for JARVIS.
+"""Sounddevice-based audio implementation for ARGUS.
 
 This is the default audio backend that uses sounddevice for real microphone
 and speaker I/O. Preserves exact behavior from main.py's _listen_audio,
@@ -18,7 +18,7 @@ import sounddevice as sd
 from audio.base import AudioConfig, AudioInterface
 from config.settings import get_settings
 
-logger = logging.getLogger("jarvis.audio")
+logger = logging.getLogger("argus.audio")
 
 
 class SounddeviceInputOutput(AudioInterface):
@@ -50,7 +50,7 @@ class SounddeviceInputOutput(AudioInterface):
         self._config = config or AudioConfig.from_settings(get_settings())
         self._external_audio = external_audio
 
-        # Callbacks/refs to JarvisLive state (avoid circular dependency)
+        # Callbacks/refs to ArgusLive state (avoid circular dependency)
         self._speaking_lock = speaking_lock or threading.Lock()
         self._is_speaking_ref = is_speaking_ref or (lambda: False)
         self._set_speaking_cb = set_speaking_cb or (lambda v: None)
@@ -87,10 +87,10 @@ class SounddeviceInputOutput(AudioInterface):
 
         def sd_callback(indata, frames, time_info, status):
             if status:
-                logger.info(f"[JARVIS] ⚠️ Mic status: {status}")
+                logger.info(f"[ARGUS] ⚠️ Mic status: {status}")
             with self._speaking_lock:
-                jarvis_speaking = self._is_speaking_ref()
-            if not jarvis_speaking and not self._muted_cb():
+                argus_speaking = self._is_speaking_ref()
+            if not argus_speaking and not self._muted_cb():
                 data = indata.tobytes()
                 if self._loop and not self._shutdown_event.is_set():
                     self._loop.call_soon_threadsafe(
@@ -105,7 +105,7 @@ class SounddeviceInputOutput(AudioInterface):
             callback=sd_callback,
         )
         self._input_stream.start()
-        logger.info("[JARVIS] 🎤 Mic started")
+        logger.info("[ARGUS] 🎤 Mic started")
 
     def _safe_callback(self, data: bytes) -> None:
         """Thread-safe callback wrapper."""
@@ -113,7 +113,7 @@ class SounddeviceInputOutput(AudioInterface):
             try:
                 self._input_callback(data)
             except Exception as e:
-                logger.info(f"[JARVIS] ❌ Input callback error: {e}")
+                logger.info(f"[ARGUS] ❌ Input callback error: {e}")
 
     async def start_output(self) -> None:
         """Start audio output stream."""
@@ -125,7 +125,7 @@ class SounddeviceInputOutput(AudioInterface):
                 blocksize=self._config.chunk_size,
             )
             self._output_stream.start()
-        logger.info("[JARVIS] 🔊 Play started")
+        logger.info("[ARGUS] 🔊 Play started")
 
     async def stop(self) -> None:
         """Stop both streams and cleanup."""
@@ -136,7 +136,7 @@ class SounddeviceInputOutput(AudioInterface):
                 self._input_stream.stop()
                 self._input_stream.close()
             except Exception as e:
-                logger.info(f"[JARVIS] ⚠️ Input stream close error: {e}")
+                logger.info(f"[ARGUS] ⚠️ Input stream close error: {e}")
             self._input_stream = None
 
         if self._output_stream is not None:
@@ -144,11 +144,11 @@ class SounddeviceInputOutput(AudioInterface):
                 self._output_stream.stop()
                 self._output_stream.close()
             except Exception as e:
-                logger.info(f"[JARVIS] ⚠️ Output stream close error: {e}")
+                logger.info(f"[ARGUS] ⚠️ Output stream close error: {e}")
             self._output_stream = None
 
         self._set_speaking_cb(False)
-        logger.info("[JARVIS] 🔇 Audio stopped")
+        logger.info("[ARGUS] 🔇 Audio stopped")
 
     def put_audio(self, chunk: bytes) -> None:
         """Queue audio chunk for playback (called from receive loop)."""
@@ -156,7 +156,7 @@ class SounddeviceInputOutput(AudioInterface):
             try:
                 self._audio_in_queue.put_nowait(chunk)
             except asyncio.QueueFull:
-                logger.warning("[JARVIS] ⚠️ Audio queue full, dropping chunk")
+                logger.warning("[ARGUS] ⚠️ Audio queue full, dropping chunk")
 
     async def get_audio(self) -> Optional[bytes]:
         """Get next audio chunk for playback."""
@@ -187,11 +187,11 @@ class SounddeviceInputOutput(AudioInterface):
                 self._turn_done_event.clear()
             return None
         except Exception as e:
-            logger.info(f"[JARVIS] ❌ Get audio error: {e}")
+            logger.info(f"[ARGUS] ❌ Get audio error: {e}")
             raise
 
     async def play_loop(self) -> None:
-        """Main playback loop - call this from JarvisLive._play_audio equivalent.
+        """Main playback loop - call this from ArgusLive._play_audio equivalent.
 
         Handles:
         - External TTS passthrough
@@ -217,16 +217,16 @@ class SounddeviceInputOutput(AudioInterface):
                             f"audio/pcm;rate={self._config.receive_sample_rate}"
                         )
                     except Exception as e:
-                        logger.info(f"[JARVIS] ❌ External audio send error: {e}")
+                        logger.info(f"[ARGUS] ❌ External audio send error: {e}")
             elif self._output_stream is not None:
                 try:
                     await asyncio.to_thread(self._output_stream.write, chunk)
                 except Exception as e:
-                    logger.info(f"[JARVIS] ❌ Audio write error: {e}")
+                    logger.info(f"[ARGUS] ❌ Audio write error: {e}")
                     raise
 
     async def send_realtime_loop(self) -> None:
-        """Send realtime audio to Gemini - call from JarvisLive._send_realtime equivalent."""
+        """Send realtime audio to Gemini - call from ArgusLive._send_realtime equivalent."""
         while not self._shutdown_event.is_set():
             if self._out_queue is None:
                 return
@@ -234,7 +234,7 @@ class SounddeviceInputOutput(AudioInterface):
                 msg = await self._out_queue.get()
                 if msg is None:
                     return
-                # This would need session access - handled by JarvisLive
+                # This would need session access - handled by ArgusLive
                 # Kept for interface completeness
             except Exception:
                 return

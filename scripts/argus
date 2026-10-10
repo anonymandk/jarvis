@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# JARVIS command-line launcher. Works directly or through a symlink in PATH.
+# ARGUS command-line launcher. Works directly or through a symlink in PATH.
 set -e
 
 SOURCE="${BASH_SOURCE[0]}"
@@ -11,7 +11,7 @@ done
 PROJECT_ROOT="$(cd -P "$(dirname "$SOURCE")/.." >/dev/null 2>&1 && pwd)"
 
 cd "$PROJECT_ROOT"
-export JARVIS_CLI=1
+export ARGUS_CLI=1
 if [ -x "$PROJECT_ROOT/.venv/bin/python" ]; then
   exec "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/main.py" "$@"
 fi

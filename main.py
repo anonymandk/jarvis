@@ -15,8 +15,8 @@ from pathlib import Path
 import sounddevice as sd
 from google import genai
 from google.genai import types
-from api import status as jarvis_status
-from core.jarvis_client import JarvisClient
+from api import status as argus_status
+from core.argus_client import ArgusClient
 from memory.memory_manager import (
     load_memory, update_memory, format_memory_for_prompt,
 )
@@ -37,7 +37,7 @@ from llm_providers import (
     create_llm_provider,
 )
 
-logger = logging.getLogger("jarvis")
+logger = logging.getLogger("argus")
 
 
 def _lazy_action(module_name: str, attribute: str):
@@ -114,16 +114,16 @@ STARTUP_CLAPS_REQUIRED = 2
 STARTUP_CLAP_MAX_GAP_SECONDS = 4.0
 STARTUP_CLAP_COOLDOWN_SECONDS = 0.22
 SELF_QUIT_GOODBYE = (
-    "Certainly, sir. It has been a privilege. JARVIS is going offline now. "
+    "Certainly, sir. It has been a privilege. ARGUS is going offline now. "
     "Until next time."
 )
 
 _SELF_QUIT_PATTERNS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
-    r"\b(?:quit|close|exit)\s+(?:jarvis|yourself)\b",
-    r"\b(?:shut|turn)\s+(?:jarvis|yourself)\s+(?:down|off)\b",
-    r"\b(?:shut\s+down|turn\s+off|power\s+down)\s+(?:jarvis|yourself)\b",
-    r"\bjarvis\b.{0,36}\b(?:quit|close|exit|shut\s+down|turn\s+off|go\s+offline)\b",
-    r"\b(?:go|take\s+yourself)\s+offline(?:\s+jarvis)?\b",
+    r"\b(?:quit|close|exit)\s+(?:argus|yourself)\b",
+    r"\b(?:shut|turn)\s+(?:argus|yourself)\s+(?:down|off)\b",
+    r"\b(?:shut\s+down|turn\s+off|power\s+down)\s+(?:argus|yourself)\b",
+    r"\bargus\b.{0,36}\b(?:quit|close|exit|shut\s+down|turn\s+off|go\s+offline)\b",
+    r"\b(?:go|take\s+yourself)\s+offline(?:\s+argus)?\b",
 ))
 
 
@@ -201,15 +201,15 @@ def wait_for_startup_claps(
     stream_factory=None,
 ) -> bool:
     """Hold startup until two distinct claps are heard by the default microphone."""
-    if os.environ.get("JARVIS_SKIP_CLAP_GATE", "").strip().lower() in {"1", "true", "yes", "on"}:
-        logger.info("[JARVIS] 👏 Startup clap gate bypassed (JARVIS_SKIP_CLAP_GATE).")
+    if os.environ.get("ARGUS_SKIP_CLAP_GATE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        logger.info("[ARGUS] 👏 Startup clap gate bypassed (ARGUS_SKIP_CLAP_GATE).")
         return True
     # Some macOS/AUHAL configurations expose a nominal input device but reject
     # every PortAudio operation (PaErrorCode -9986). Avoid repeatedly starting
     # a failing Core Audio stream; users with a working mic can opt in.
-    if sys.platform == "darwin" and stream_factory is None and os.environ.get("JARVIS_ENABLE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-        logger.info("[JARVIS] ⚠️ macOS microphone gate disabled for this audio configuration.")
-        logger.info("[JARVIS] Continuing without clap startup. Set JARVIS_ENABLE_CLAP_GATE=1 to force it.")
+    if sys.platform == "darwin" and stream_factory is None and os.environ.get("ARGUS_ENABLE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        logger.info("[ARGUS] ⚠️ macOS microphone gate disabled for this audio configuration.")
+        logger.info("[ARGUS] Continuing without clap startup. Set ARGUS_ENABLE_CLAP_GATE=1 to force it.")
         return True
 
     required = max(1, int(required))
@@ -217,7 +217,7 @@ def wait_for_startup_claps(
     try:
         import numpy as np
     except ImportError:
-        logger.info("[JARVIS] ❌ Startup clap gate needs numpy. Set JARVIS_SKIP_CLAP_GATE=1 to bypass.")
+        logger.info("[ARGUS] ❌ Startup clap gate needs numpy. Set ARGUS_SKIP_CLAP_GATE=1 to bypass.")
         return False
 
     clap_times: list[float] = []
@@ -233,7 +233,7 @@ def wait_for_startup_claps(
     def callback(indata, frames, time_info, status):
         nonlocal last_clap_at, noise_floor, clap_times
         if status:
-            logger.info(f"[JARVIS] ⚠️ Clap mic: {status}")
+            logger.info(f"[ARGUS] ⚠️ Clap mic: {status}")
         samples = np.asarray(indata, dtype=np.float32).reshape(-1)
         if samples.size == 0:
             return
@@ -264,11 +264,11 @@ def wait_for_startup_claps(
             clap_times = []
         clap_times.append(now)
         last_clap_at = now
-        logger.info(f"[JARVIS] 👏 Clap {len(clap_times)}/{required} detected")
+        logger.info(f"[ARGUS] 👏 Clap {len(clap_times)}/{required} detected")
         if len(clap_times) >= required:
             finished.set()
 
-    logger.info(f"[JARVIS] 👏 Waiting for {required} claps to power up...")
+    logger.info(f"[ARGUS] 👏 Waiting for {required} claps to power up...")
     # PortAudio on macOS commonly rejects 16 kHz even when the microphone is
     # available (PaErrorCode -9986). Prefer the device's native rate, then
     # retry standard rates before reporting that the microphone is unavailable.
@@ -283,9 +283,9 @@ def wait_for_startup_claps(
                 except (TypeError, IndexError, ValueError):
                     input_index = -1
                 if input_index < 0:
-                    logger.info("[JARVIS] ⚠️ macOS reports no default microphone device.")
-                    if os.environ.get("JARVIS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-                        logger.info("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+                    logger.info("[ARGUS] ⚠️ macOS reports no default microphone device.")
+                    if os.environ.get("ARGUS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
+                        logger.info("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
                         return True
                     raise RuntimeError("no default microphone device")
                 input_device = input_index
@@ -322,7 +322,7 @@ def wait_for_startup_claps(
                 ):
                     while not finished.wait(0.05):
                         if timeout is not None and time.monotonic() - started_at >= timeout:
-                            logger.info("[JARVIS] ⏱️ Startup clap gate timed out.")
+                            logger.info("[ARGUS] ⏱️ Startup clap gate timed out.")
                             return False
                 break
             except Exception as exc:
@@ -332,18 +332,18 @@ def wait_for_startup_claps(
         else:
             raise last_error or RuntimeError("no compatible microphone sample rate")
     except KeyboardInterrupt:
-        logger.info("\n[JARVIS] Startup cancelled.")
+        logger.info("\n[ARGUS] Startup cancelled.")
         return False
     except Exception as exc:
-        logger.info(f"[JARVIS] ❌ Startup clap microphone unavailable: {exc}")
-        if os.environ.get("JARVIS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
-            logger.info("[JARVIS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
-            logger.info("[JARVIS] Restore microphone access to use voice input.")
+        logger.info(f"[ARGUS] ❌ Startup clap microphone unavailable: {exc}")
+        if os.environ.get("ARGUS_REQUIRE_CLAP_GATE", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            logger.info("[ARGUS] ⚠️ Continuing without the clap gate; microphone input is unavailable.")
+            logger.info("[ARGUS] Restore microphone access to use voice input.")
             return True
-        logger.info("[JARVIS] Clap gate required. Set JARVIS_SKIP_CLAP_GATE=1 to bypass it.")
+        logger.info("[ARGUS] Clap gate required. Set ARGUS_SKIP_CLAP_GATE=1 to bypass it.")
         return False
 
-    logger.info("[JARVIS] ⚡ Two claps detected. Powering up...")
+    logger.info("[ARGUS] ⚡ Two claps detected. Powering up...")
     return True
 
 def _get_api_key() -> str:
@@ -384,7 +384,7 @@ def _load_system_prompt() -> str:
         )
     except Exception:
         return (
-            "You are JARVIS, Tony Stark's AI assistant. "
+            "You are ARGUS, Tony Stark's AI assistant. "
             "Be concise, direct, and always use the provided tools to complete tasks. "
             "Never simulate or guess results — always call the appropriate tool. "
             "Always address the user respectfully as 'Sir' or 'Madam' where appropriate, while remaining efficient and direct."
@@ -446,7 +446,7 @@ ALL_TOOL_NAMES = frozenset({
     "computer_control",
     "game_updater",
     "flight_finder",
-    "jarvis_ui_control",
+    "argus_ui_control",
     "file_processor",
     "create_presentation",
     "deep_research",
@@ -462,11 +462,11 @@ LOCAL_MACHINE_ONLY_ACTIONS = ALL_TOOL_NAMES - CLOUD_SAFE_ACTIONS
 TOOL_DECLARATIONS = get_tool_declarations(cloud_safe=False)
 
 
-class JarvisLive:
+class ArgusLive:
 
     def __init__(
         self,
-        client: JarvisClient,
+        client: ArgusClient,
         voice_name: str = "Puck",
         *,
         cloud_safe: bool = False,
@@ -476,7 +476,7 @@ class JarvisLive:
         llm_provider: BaseLLM | None = None,
     ):
         # Keep ``ui`` as a compatibility alias for desktop integrations that
-        # already inspect JarvisLive.ui. The engine contract is JarvisClient.
+        # already inspect ArgusLive.ui. The engine contract is ArgusClient.
         self.client         = client
         self.ui             = client
         self.cloud_safe     = bool(cloud_safe)
@@ -539,7 +539,7 @@ class JarvisLive:
         ):
             self._queue_self_quit_after_farewell()
             outgoing_text = (
-                "[VERIFIED LOCAL SELF-SHUTDOWN] The user explicitly asked JARVIS to quit. "
+                "[VERIFIED LOCAL SELF-SHUTDOWN] The user explicitly asked ARGUS to quit. "
                 f'Say exactly: "{SELF_QUIT_GOODBYE}" Do not call a tool and say nothing else.'
             )
         await self.session.send_client_content(
@@ -607,7 +607,7 @@ class JarvisLive:
             return False
 
     def _speak_vision_result(self, text: str) -> bool:
-        """Send finished vision text through JARVIS's active voice session."""
+        """Send finished vision text through ARGUS's active voice session."""
         result = " ".join(str(text or "").split())
         if not result:
             return False
@@ -625,7 +625,7 @@ class JarvisLive:
 
     @staticmethod
     def _is_explicit_self_quit_transcript(text: str) -> bool:
-        """Only match commands that clearly target JARVIS, never the computer."""
+        """Only match commands that clearly target ARGUS, never the computer."""
         normalized = " ".join(str(text or "").lower().split())
         if not normalized:
             return False
@@ -635,7 +635,7 @@ class JarvisLive:
             return False
         if normalized in {
             "quit", "exit", "shutdown", "shut down", "turn off", "power down",
-            "go offline", "goodbye jarvis", "goodbye jarvis please",
+            "go offline", "goodbye argus", "goodbye argus please",
         }:
             return True
         return any(pattern.search(normalized) for pattern in _SELF_QUIT_PATTERNS)
@@ -645,7 +645,7 @@ class JarvisLive:
         self._pending_self_quit = True
         self._pending_self_quit_farewell_received = False
         try:
-            self.ui.write_log("SYS: Shutdown queued; waiting for JARVIS's farewell.")
+            self.ui.write_log("SYS: Shutdown queued; waiting for ARGUS's farewell.")
         except Exception:
             pass
         # A voice model can occasionally omit audio/turn_complete. Do not
@@ -682,7 +682,7 @@ class JarvisLive:
             self._self_quit_timer.cancel()
             self._self_quit_timer = None
         self.request_shutdown()
-        self.ui.handle_ui_command("Quit JARVIS")
+        self.ui.handle_ui_command("Quit ARGUS")
         return True
 
     def request_shutdown(self) -> None:
@@ -703,7 +703,7 @@ class JarvisLive:
             if out_queue is not None:
                 out_queue.put_nowait(None)
         except Exception as exc:
-            logger.info(f"[JARVIS] ⚠️ Shutdown session close failed: {exc}")
+            logger.info(f"[ARGUS] ⚠️ Shutdown session close failed: {exc}")
 
     def set_tour_active(self, active: bool) -> None:
         """Track whether the desktop introduction temporarily owns the UI."""
@@ -720,8 +720,8 @@ class JarvisLive:
     def _intercept_ui_tool_call(self, name: str, args: dict) -> str | None:
         """Safety net for stale models that attempt the removed quit tool action."""
         action = str(args.get("action") or "").strip().lower()
-        if name != "shutdown_jarvis" and not (
-            name == "jarvis_ui_control" and action == "quit_jarvis"
+        if name != "shutdown_argus" and not (
+            name == "argus_ui_control" and action == "quit_argus"
         ):
             return None
 
@@ -732,7 +732,7 @@ class JarvisLive:
                 transcript = str(getattr(self, "_last_input_transcript", "") or "")
 
         if not self._is_explicit_self_quit_transcript(transcript):
-            return "Ignored an unverified shutdown request. JARVIS remains online."
+            return "Ignored an unverified shutdown request. ARGUS remains online."
 
         self._queue_self_quit_after_farewell()
         return f'Shutdown queued. Say exactly: "{SELF_QUIT_GOODBYE}"'
@@ -748,7 +748,7 @@ class JarvisLive:
             try:
                 asyncio.run_coroutine_threadsafe(self.session.close(), self._loop)
             except Exception as e:
-                logger.info(f"[JARVIS] ⚠️ Could not close session after voice change: {e}")
+                logger.info(f"[ARGUS] ⚠️ Could not close session after voice change: {e}")
 
     def _get_current_voice(self) -> str:
         if getattr(self, "voice_name", None):
@@ -775,15 +775,15 @@ class JarvisLive:
             elif isinstance(name_entry, str):
                 name = name_entry
             if name:
-                greeting = f"Jarvis. At your service, {name}. What would you like to accomplish today?"
+                greeting = f"Argus. At your service, {name}. What would you like to accomplish today?"
             else:
-                greeting = "Jarvis. At your service, Sir or Madam. What would you like to accomplish today?"
+                greeting = "Argus. At your service, Sir or Madam. What would you like to accomplish today?"
             await self.session.send_client_content(
                 turns={"parts": [{"text": greeting}]},
                 turn_complete=True,
             )
         except Exception as e:
-            logger.info(f"[JARVIS] ⚠️ Greeting failed: {e}")
+            logger.info(f"[ARGUS] ⚠️ Greeting failed: {e}")
 
     def _build_config(self) -> types.LiveConnectConfig:
         from datetime import datetime
@@ -854,7 +854,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
         return types.FunctionResponse(
             id=fc.id,
             name=name,
-            response={"result": "Startup sequence active. Try this action again when JARVIS is ready."},
+            response={"result": "Startup sequence active. Try this action again when ARGUS is ready."},
         )
 
     from core.qa_mode import guard_tool_call, qa_block_message
@@ -867,7 +867,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
             response={"result": qa_block_message(qa_decision)},
         )
 
-    logger.info(f"[JARVIS] 🔧 {name}  {args}")
+    logger.info(f"[ARGUS] 🔧 {name}  {args}")
     self.ui.set_state("THINKING")
 
     intercepted = self._intercept_ui_tool_call(name, args)
@@ -906,7 +906,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
     if not self.ui.muted:
         self.ui.set_state("LISTENING")
 
-    logger.info(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+    logger.info(f"[ARGUS] 📤 {name} → {str(result)[:80]}")
     response = {"result": result}
     if silent:
         response["silent"] = True
@@ -937,7 +937,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
             await asyncio.sleep(1)
 
     async def _receive_audio(self):
-        logger.info("[JARVIS] 👂 Recv started")
+        logger.info("[ARGUS] 👂 Recv started")
         out_buf, in_buf = [], []
         _new_turn = True
         turn_had_audio = False
@@ -1001,7 +1001,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
 
                             full_out = " ".join(out_buf).strip()
                             if full_out:
-                                self.ui.write_log(f"Jarvis: {full_out}")
+                                self.ui.write_log(f"Argus: {full_out}")
                             if (
                                 getattr(self, "_pending_self_quit", False)
                                 and (full_out or turn_had_audio)
@@ -1015,7 +1015,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     if response.tool_call:
                         function_calls = list(response.tool_call.function_calls)
                         for fc in function_calls:
-                            logger.info(f"[JARVIS] 📞 {fc.name}")
+                            logger.info(f"[ARGUS] 📞 {fc.name}")
                         fn_responses = await self._execute_tool_batch(function_calls)
                         await self.session.send_tool_response(
                             function_responses=fn_responses
@@ -1024,9 +1024,9 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                         return
         except Exception as e:
             if isinstance(e, genai.errors.APIError) and "1000" in str(e):
-                logger.info("[JARVIS] 🔌 Session closed normally.")
+                logger.info("[ARGUS] 🔌 Session closed normally.")
                 return
-            logger.info(f"[JARVIS] ❌ Recv: {e}")
+            logger.info(f"[ARGUS] ❌ Recv: {e}")
             logger.exception("Unhandled exception")
             raise
 
@@ -1041,7 +1041,7 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
         if self._audio_backend:
             await self._audio_backend.play_loop()
         else:
-            logger.warning("[JARVIS] ⚠️ No audio backend, skipping playback")
+            logger.warning("[ARGUS] ⚠️ No audio backend, skipping playback")
 
     async def _play_audio(self):
         """Legacy method - kept for backward compatibility.
@@ -1069,9 +1069,9 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
             if self.runtime_limit_seconds is not None:
                 elapsed = time.time() - start_time
                 if elapsed >= float(self.runtime_limit_seconds):
-                    logger.info(f"[JARVIS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
+                    logger.info(f"[ARGUS] ⏱️ Runtime limit reached ({self.runtime_limit_seconds}s). Exiting.")
                     try:
-                        jarvis_status.write_status({"state": "expired"})
+                        argus_status.write_status({"state": "expired"})
                     except Exception:
                         pass
                     os._exit(0)
@@ -1081,24 +1081,24 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                 try:
                     path = Path(self.required_unlock_path)
                     if not path.exists():
-                        logger.info(f"[JARVIS] 🔒 Required unlock path not present: {self.required_unlock_path}")
+                        logger.info(f"[ARGUS] 🔒 Required unlock path not present: {self.required_unlock_path}")
                         logger.info("Please mount the locked container (see scripts/create_locked_dmg.sh).")
                         time.sleep(5)
                         continue
                     if self.required_unlock_secret is not None:
                         content = path.read_text(encoding="utf-8").strip()
                         if content != self.required_unlock_secret:
-                            logger.info("[JARVIS] 🔒 unlock.key content does not match expected secret.")
+                            logger.info("[ARGUS] 🔒 unlock.key content does not match expected secret.")
                             logger.info("Please mount the locked container with the correct unlock.key file.")
                             time.sleep(5)
                             continue
                 except Exception as e:
-                    logger.info(f"[JARVIS] 🔒 Locked path check error: {e}")
+                    logger.info(f"[ARGUS] 🔒 Locked path check error: {e}")
                     time.sleep(1)
                     continue
             try:
                 reconnect_attempt += 1
-                logger.info("[JARVIS] 🔌 Connecting...")
+                logger.info("[ARGUS] 🔌 Connecting...")
                 self.ui.set_state("THINKING")
                 config = self._build_config()
 
@@ -1132,12 +1132,12 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     await self._audio_backend.start_input(self._on_audio_input)
                     await self._audio_backend.start_output()
 
-                    logger.info("[JARVIS] ✅ Connected.")
+                    logger.info("[ARGUS] ✅ Connected.")
                     self.ui.set_state("LISTENING")
-                    self.ui.write_log("SYS: JARVIS online.")
+                    self.ui.write_log("SYS: ARGUS online.")
                     if not self.cloud_safe:
                         try:
-                            jarvis_status.write_status({
+                            argus_status.write_status({
                                 "state": "online",
                                 "voice": self._get_current_voice(),
                                 "pid": os.getpid(),
@@ -1165,18 +1165,18 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                     self.ui.write_log(
                         f"SYS: Voice '{old_voice}' not available. Falling back to {DEFAULT_VOICE_NAME}."
                     )
-                    logger.info(f"[JARVIS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
+                    logger.info(f"[ARGUS] ⚠️ Voice '{old_voice}' unsupported; falling back to {DEFAULT_VOICE_NAME}.")
                     self.ui.sync_voice_display(DEFAULT_VOICE_NAME)
                     if not self.cloud_safe:
                         try:
-                            jarvis_status.write_status({"state": "voice_fallback", "voice": DEFAULT_VOICE_NAME})
+                            argus_status.write_status({"state": "voice_fallback", "voice": DEFAULT_VOICE_NAME})
                         except Exception:
                             pass
                 elif isinstance(actual, genai.errors.APIError) and "1000" in str(actual):
-                    logger.info("[JARVIS] 🔌 Session ended normally.")
+                    logger.info("[ARGUS] 🔌 Session ended normally.")
                     if not self.cloud_safe:
                         try:
-                            jarvis_status.write_status({"state": "offline"})
+                            argus_status.write_status({"state": "offline"})
                         except Exception:
                             pass
                 else:
@@ -1197,16 +1197,16 @@ async def _execute_tool(self, fc) -> types.FunctionResponse:
                                     )
                                 max_attempts = int(get_settings().runtime.reconnect_max_attempts or 0)
                                 if max_attempts > 0 and reconnect_attempt > max_attempts:
-                                    logger.info("[JARVIS] Reconnect attempts limit reached; exiting")
+                                    logger.info("[ARGUS] Reconnect attempts limit reached; exiting")
                                     os._exit(0)
-                                logger.info(f"[JARVIS] Transient error; retrying in {delay:.2f}s (attempt {reconnect_attempt})")
+                                logger.info(f"[ARGUS] Transient error; retrying in {delay:.2f}s (attempt {reconnect_attempt})")
                                 await self._wait_before_reconnect(delay)
                                 continue
                         except Exception:
                             # Never break the main loop due to metrics/backoff logic.
                             pass
 
-                    logger.info(f"[JARVIS] ⚠️ {e}")
+                    logger.info(f"[ARGUS] ⚠️ {e}")
                     logger.exception("Unhandled exception")
 
 def main():
@@ -1217,84 +1217,84 @@ def main():
 
         return self_test_main([argument for argument in sys.argv[1:] if argument != "--self-test"])
 
-    from ui import JarvisUI
+    from ui import ArgusUI
 
     running_as_app = getattr(sys, "frozen", False)
 
-    if os.environ.get("JARVIS_CLI") != "1" and not running_as_app:
-        logger.info("[JARVIS] Please launch with the JARVIS CLI: jarvis")
+    if os.environ.get("ARGUS_CLI") != "1" and not running_as_app:
+        logger.info("[ARGUS] Please launch with the ARGUS CLI: argus")
         return
     if not wait_for_startup_claps():
         return
-    logger.info("[JARVIS] ⚡ Powering up the interface...")
+    logger.info("[ARGUS] ⚡ Powering up the interface...")
     try:
-        ui = JarvisUI("face.png")
+        ui = ArgusUI("face.png")
     except Exception as exc:
-        logger.info(f"[JARVIS] ❌ Interface startup failed: {exc}")
+        logger.info(f"[ARGUS] ❌ Interface startup failed: {exc}")
         logger.exception("Unhandled exception")
         return
 
     def runner():
         ui.wait_for_api_key()
         voice_name = _load_voice_name()
-        jarvis = JarvisLive(ui, voice_name)
-        ui.on_quit_requested = jarvis.request_shutdown
+        argus = ArgusLive(ui, voice_name)
+        ui.on_quit_requested = argus.request_shutdown
 
-        # Trial/keyword runtime limiting: set via env `JARVIS_TRIAL_KEYWORD`.
-        # If set to any non-empty string, jarvis will run for 3600 seconds (1 hour).
-        trial_kw = os.environ.get("JARVIS_TRIAL_KEYWORD")
+        # Trial/keyword runtime limiting: set via env `ARGUS_TRIAL_KEYWORD`.
+        # If set to any non-empty string, argus will run for 3600 seconds (1 hour).
+        trial_kw = os.environ.get("ARGUS_TRIAL_KEYWORD")
         if trial_kw:
-            jarvis.runtime_limit_seconds = int(os.environ.get("JARVIS_RUNTIME_SECONDS", "3600"))
-            jarvis.ui.write_log(f"SYS: Trial keyword detected. Running for {jarvis.runtime_limit_seconds} seconds.")
+            argus.runtime_limit_seconds = int(os.environ.get("ARGUS_RUNTIME_SECONDS", "3600"))
+            argus.ui.write_log(f"SYS: Trial keyword detected. Running for {argus.runtime_limit_seconds} seconds.")
 
-        locked_secret = os.environ.get("JARVIS_LOCKED_KEY_SECRET")
+        locked_secret = os.environ.get("ARGUS_LOCKED_KEY_SECRET")
         if locked_secret:
-            jarvis.required_unlock_secret = locked_secret.strip()
+            argus.required_unlock_secret = locked_secret.strip()
 
-        # Locked container check: if `JARVIS_LOCKED_VOLUME` is set, require
+        # Locked container check: if `ARGUS_LOCKED_VOLUME` is set, require
         # presence of `/Volumes/<name>/unlock.key` before full operation.
-        locked_vol = os.environ.get("JARVIS_LOCKED_VOLUME")
+        locked_vol = os.environ.get("ARGUS_LOCKED_VOLUME")
         if locked_vol:
             mount_path = f"/Volumes/{locked_vol}/unlock.key"
-            jarvis.required_unlock_path = mount_path
-            jarvis.ui.write_log(f"SYS: Locked volume required: {mount_path}")
-        ui.on_voice_change = jarvis.update_voice
+            argus.required_unlock_path = mount_path
+            argus.ui.write_log(f"SYS: Locked volume required: {mount_path}")
+        ui.on_voice_change = argus.update_voice
         def _on_tts_change(provider, api_key, voice_id):
             if provider == "gemini":
-                jarvis._tts_engine = None
-                jarvis._ext_tts_provider = ""
-                jarvis._ext_tts_voice_id = ""
-                jarvis._ext_tts_api_key = ""
-                jarvis.update_voice(voice_id)
+                argus._tts_engine = None
+                argus._ext_tts_provider = ""
+                argus._ext_tts_voice_id = ""
+                argus._ext_tts_api_key = ""
+                argus.update_voice(voice_id)
             else:
-                jarvis._ext_tts_provider = provider
-                jarvis._ext_tts_voice_id = voice_id
-                jarvis._ext_tts_api_key = api_key
+                argus._ext_tts_provider = provider
+                argus._ext_tts_voice_id = voice_id
+                argus._ext_tts_api_key = api_key
                 try:
                     from actions.tts_engine import TTSEngine
-                    jarvis._tts_engine = TTSEngine(
+                    argus._tts_engine = TTSEngine(
                         provider=provider,
                         api_key=api_key,
                         voice_id=voice_id,
                     )
-                    jarvis.ui.write_log(f"SYS: TTS engine ready: {provider} / {voice_id}")
-                    jarvis.ui.write_log("SYS: Gemini audio muted - using external TTS")
+                    argus.ui.write_log(f"SYS: TTS engine ready: {provider} / {voice_id}")
+                    argus.ui.write_log("SYS: Gemini audio muted - using external TTS")
                 except Exception as e:
-                    jarvis.ui.write_log(f"SYS: TTS engine error: {e}")
+                    argus.ui.write_log(f"SYS: TTS engine error: {e}")
                 # Restart session so new TTS takes effect
-                if jarvis.session and jarvis._loop:
+                if argus.session and argus._loop:
                     try:
-                        asyncio.run_coroutine_threadsafe(jarvis.session.close(), jarvis._loop)
+                        asyncio.run_coroutine_threadsafe(argus.session.close(), argus._loop)
                     except Exception as e:
-                        logger.info(f"[JARVIS] Could not close session: {e}")
+                        logger.info(f"[ARGUS] Could not close session: {e}")
         ui.on_tts_provider_change = _on_tts_change
         try:
-            asyncio.run(jarvis.run())
+            asyncio.run(argus.run())
         except KeyboardInterrupt:
             logger.info("\n🔴 Shutting down...")
         except Exception as exc:
             message = f"Gemini startup failed: {str(exc)[:180]}"
-            logger.info(f"[JARVIS] ❌ {message}")
+            logger.info(f"[ARGUS] ❌ {message}")
             try:
                 ui.write_log(f"ERR: {message}")
                 ui.set_state("LISTENING")
@@ -1302,13 +1302,13 @@ def main():
                 pass
 
     threading.Thread(target=runner, daemon=True).start()
-    logger.info("[JARVIS] ✅ Interface ready.")
+    logger.info("[ARGUS] ✅ Interface ready.")
     ui.root.mainloop()
-    logger.info("[JARVIS] Interface closed.")
+    logger.info("[ARGUS] Interface closed.")
 
 def cli_main():
-    """Canonical console entry point installed as the `jarvis` command."""
-    os.environ["JARVIS_CLI"] = "1"
+    """Canonical console entry point installed as the `argus` command."""
+    os.environ["ARGUS_CLI"] = "1"
     return main()
 
 

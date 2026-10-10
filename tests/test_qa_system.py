@@ -28,8 +28,8 @@ class QAModeSafetyTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.env = patch.dict(os.environ, {
-            "JARVIS_QA_MODE": "1",
-            "JARVIS_QA_WORKSPACE": self.tmp.name,
+            "ARGUS_QA_MODE": "1",
+            "ARGUS_QA_WORKSPACE": self.tmp.name,
         }, clear=False)
         self.env.start()
 
@@ -38,7 +38,7 @@ class QAModeSafetyTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_normal_runtime_is_unchanged_when_qa_mode_is_off(self):
-        with patch.dict(os.environ, {"JARVIS_QA_MODE": "0"}, clear=False):
+        with patch.dict(os.environ, {"ARGUS_QA_MODE": "0"}, clear=False):
             self.assertTrue(qa_mode.guard_tool_call("send_message", {}).allowed)
 
     def test_real_message_send_is_always_blocked(self):
@@ -47,7 +47,7 @@ class QAModeSafetyTests(unittest.TestCase):
         self.assertIn("never sends", decision.reason)
 
     def test_power_actions_remain_blocked_even_with_desktop_opt_in(self):
-        with patch.dict(os.environ, {"JARVIS_QA_ALLOW_DESKTOP": "1"}, clear=False):
+        with patch.dict(os.environ, {"ARGUS_QA_ALLOW_DESKTOP": "1"}, clear=False):
             decision = qa_mode.guard_tool_call("computer_settings", {"action": "shutdown"})
         self.assertFalse(decision.allowed)
 
@@ -55,8 +55,8 @@ class QAModeSafetyTests(unittest.TestCase):
         self.assertFalse(qa_mode.guard_tool_call("browser_control", {"action": "navigate"}).allowed)
         self.assertFalse(qa_mode.guard_tool_call("prepare_message_reply", {}).allowed)
         with patch.dict(os.environ, {
-            "JARVIS_QA_ALLOW_BROWSER": "1",
-            "JARVIS_QA_ALLOW_DRAFTS": "1",
+            "ARGUS_QA_ALLOW_BROWSER": "1",
+            "ARGUS_QA_ALLOW_DRAFTS": "1",
         }, clear=False):
             self.assertTrue(qa_mode.guard_tool_call("browser_control", {"action": "navigate"}).allowed)
             self.assertTrue(qa_mode.guard_tool_call("prepare_message_reply", {}).allowed)
@@ -74,98 +74,98 @@ class QAModeSafetyTests(unittest.TestCase):
 
     def test_media_control_requires_supervised_desktop_opt_in(self):
         self.assertFalse(qa_mode.guard_tool_call("media_control", {"action": "play"}).allowed)
-        with patch.dict(os.environ, {"JARVIS_QA_ALLOW_DESKTOP": "1"}, clear=False):
+        with patch.dict(os.environ, {"ARGUS_QA_ALLOW_DESKTOP": "1"}, clear=False):
             self.assertTrue(qa_mode.guard_tool_call("media_control", {"action": "pause"}).allowed)
 
     def test_email_access_requires_explicit_qa_opt_in(self):
         self.assertFalse(qa_mode.guard_tool_call("email_control", {"action": "inbox"}).allowed)
-        with patch.dict(os.environ, {"JARVIS_QA_ALLOW_EMAIL": "1"}, clear=False):
+        with patch.dict(os.environ, {"ARGUS_QA_ALLOW_EMAIL": "1"}, clear=False):
             self.assertTrue(qa_mode.guard_tool_call("email_control", {"action": "inbox"}).allowed)
             self.assertFalse(qa_mode.guard_tool_call("email_control", {"action": "approve"}).allowed)
 
     def test_live_dispatch_enforces_qa_guard_before_tool_handler(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.ui = SimpleNamespace(interaction_gated=False)
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.ui = SimpleNamespace(interaction_gated=False)
         call = SimpleNamespace(
             id="qa-call",
             call_id=None,
             name="send_message",
             args={"receiver": "Nobody", "message_text": "test", "platform": "iMessage"},
         )
-        response = asyncio.run(jarvis._execute_tool(call))
+        response = asyncio.run(argus._execute_tool(call))
         self.assertIn("QA SAFETY BLOCK", response.response["result"])
 
     def test_live_dispatch_is_blocked_until_ui_is_operationally_ready(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.ui = SimpleNamespace(interaction_gated=False, operational_ready=False)
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.ui = SimpleNamespace(interaction_gated=False, operational_ready=False)
         call = SimpleNamespace(
             id="startup-call",
             call_id=None,
-            name="jarvis_ui_control",
+            name="argus_ui_control",
             args={"action": "open_settings"},
         )
-        response = asyncio.run(jarvis._execute_tool(call))
+        response = asyncio.run(argus._execute_tool(call))
         self.assertIn("Startup sequence active", response.response["result"])
 
     def test_live_quit_tool_requires_explicit_current_user_transcript(self):
         import main
 
         commands = []
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.ui = SimpleNamespace(
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.ui = SimpleNamespace(
             handle_ui_command=commands.append,
             _win=SimpleNamespace(),
         )
-        jarvis._current_input_transcript = ""
-        jarvis._last_input_transcript = ""
-        jarvis._last_input_transcript_at = 0.0
-        blocked = jarvis._intercept_ui_tool_call(
-            "jarvis_ui_control", {"action": "quit_jarvis"}
+        argus._current_input_transcript = ""
+        argus._last_input_transcript = ""
+        argus._last_input_transcript_at = 0.0
+        blocked = argus._intercept_ui_tool_call(
+            "argus_ui_control", {"action": "quit_argus"}
         )
         self.assertIn("Ignored an unverified shutdown request", blocked)
         self.assertEqual(commands, [])
 
-        jarvis._current_input_transcript = "JARVIS, shut yourself down."
-        allowed = jarvis._intercept_ui_tool_call(
-            "jarvis_ui_control", {"action": "quit_jarvis"}
+        argus._current_input_transcript = "ARGUS, shut yourself down."
+        allowed = argus._intercept_ui_tool_call(
+            "argus_ui_control", {"action": "quit_argus"}
         )
         self.assertIn("Shutdown queued", allowed)
         self.assertIn(main.SELF_QUIT_GOODBYE, allowed)
         self.assertEqual(commands, [])
-        self.assertTrue(jarvis._pending_self_quit)
-        self.assertFalse(jarvis._pending_self_quit_farewell_received)
+        self.assertTrue(argus._pending_self_quit)
+        self.assertFalse(argus._pending_self_quit_farewell_received)
 
     def test_self_quit_waits_for_farewell_audio_to_finish(self):
         import main
 
         commands = []
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.ui = SimpleNamespace(handle_ui_command=commands.append)
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.ui = SimpleNamespace(handle_ui_command=commands.append)
 
-        jarvis._queue_self_quit_after_farewell()
-        self.assertFalse(jarvis._complete_self_quit_after_audio())
+        argus._queue_self_quit_after_farewell()
+        self.assertFalse(argus._complete_self_quit_after_audio())
         self.assertEqual(commands, [])
 
-        jarvis._mark_self_quit_farewell_received()
-        self.assertTrue(jarvis._complete_self_quit_after_audio())
-        self.assertEqual(commands, ["Quit JARVIS"])
-        self.assertFalse(jarvis._pending_self_quit)
-        self.assertFalse(jarvis._pending_self_quit_farewell_received)
+        argus._mark_self_quit_farewell_received()
+        self.assertTrue(argus._complete_self_quit_after_audio())
+        self.assertEqual(commands, ["Quit ARGUS"])
+        self.assertFalse(argus._pending_self_quit)
+        self.assertFalse(argus._pending_self_quit_farewell_received)
 
     def test_shutdown_is_not_exposed_as_a_gemini_tool_action(self):
         import main
 
         declaration = next(
             item for item in main.TOOL_DECLARATIONS
-            if item.get("name") == "jarvis_ui_control"
+            if item.get("name") == "argus_ui_control"
         )
         actions = declaration["parameters"]["properties"]["action"]["enum"]
-        self.assertNotIn("quit_jarvis", actions)
-        self.assertNotIn("action='quit_jarvis'", main._load_system_prompt())
+        self.assertNotIn("quit_argus", actions)
+        self.assertNotIn("action='quit_argus'", main._load_system_prompt())
         self.assertIn(main.SELF_QUIT_GOODBYE, main._load_system_prompt())
         self.assertIn("do not claim that you cannot", main._load_system_prompt())
 
@@ -228,42 +228,42 @@ class QAModeSafetyTests(unittest.TestCase):
     def test_reconnect_wait_exits_immediately_during_shutdown(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis._shutdown_requested = __import__("threading").Event()
-        jarvis._shutdown_requested.set()
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus._shutdown_requested = __import__("threading").Event()
+        argus._shutdown_requested.set()
         started = time.perf_counter()
-        asyncio.run(jarvis._wait_before_reconnect(30.0))
+        asyncio.run(argus._wait_before_reconnect(30.0))
         self.assertLess(time.perf_counter() - started, 0.1)
 
     def test_tour_lock_tracks_state_without_closing_on_release(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.session = None
-        jarvis._loop = None
-        jarvis._tour_active = False
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.session = None
+        argus._loop = None
+        argus._tour_active = False
 
-        jarvis.set_tour_active(True)
-        self.assertTrue(jarvis._tour_active)
-        jarvis.set_tour_active(False)
-        self.assertFalse(jarvis._tour_active)
+        argus.set_tour_active(True)
+        self.assertTrue(argus._tour_active)
+        argus.set_tour_active(False)
+        self.assertFalse(argus._tour_active)
 
     def test_independent_tool_batch_executes_concurrently_and_preserves_order(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
+        argus = main.ArgusLive.__new__(main.ArgusLive)
 
         async def execute(call):
             await asyncio.sleep(0.06)
             return call.name
 
-        jarvis._execute_tool = AsyncMock(side_effect=execute)
+        argus._execute_tool = AsyncMock(side_effect=execute)
         calls = [
             SimpleNamespace(name="weather_report"),
             SimpleNamespace(name="web_search"),
         ]
         started = time.perf_counter()
-        results = asyncio.run(jarvis._execute_tool_batch(calls))
+        results = asyncio.run(argus._execute_tool_batch(calls))
         elapsed = time.perf_counter() - started
         self.assertEqual(results, ["weather_report", "web_search"])
         self.assertLess(elapsed, 0.105)
@@ -271,19 +271,19 @@ class QAModeSafetyTests(unittest.TestCase):
     def test_mutating_tool_batch_remains_sequential(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
+        argus = main.ArgusLive.__new__(main.ArgusLive)
 
         async def execute(call):
             await asyncio.sleep(0.04)
             return call.name
 
-        jarvis._execute_tool = AsyncMock(side_effect=execute)
+        argus._execute_tool = AsyncMock(side_effect=execute)
         calls = [
             SimpleNamespace(name="send_message"),
             SimpleNamespace(name="computer_settings"),
         ]
         started = time.perf_counter()
-        results = asyncio.run(jarvis._execute_tool_batch(calls))
+        results = asyncio.run(argus._execute_tool_batch(calls))
         elapsed = time.perf_counter() - started
         self.assertEqual(results, ["send_message", "computer_settings"])
         self.assertGreaterEqual(elapsed, 0.07)
@@ -291,14 +291,14 @@ class QAModeSafetyTests(unittest.TestCase):
     def test_live_config_uses_fast_end_of_speech_detection(self):
         import main
 
-        jarvis = main.JarvisLive.__new__(main.JarvisLive)
-        jarvis.voice_name = "charon"
+        argus = main.ArgusLive.__new__(main.ArgusLive)
+        argus.voice_name = "charon"
         with (
             patch.object(main, "load_memory", return_value={}),
             patch.object(main, "format_memory_for_prompt", return_value=""),
             patch.object(main, "_load_system_prompt", return_value="test prompt"),
         ):
-            config = jarvis._build_config()
+            config = argus._build_config()
 
         detection = config.realtime_input_config.automatic_activity_detection
         self.assertEqual(detection.silence_duration_ms, main.LIVE_VAD_SILENCE_MS)

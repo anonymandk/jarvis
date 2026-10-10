@@ -1,54 +1,40 @@
-"""OpenAI provider stub for JARVIS.
-
-This is a placeholder implementation that will be completed in Phase 8.
-Currently raises NotImplementedError for all operations.
-"""
+"""OpenAI Realtime provider placeholder."""
 
 from __future__ import annotations
 
-from llm_providers.base import (
-    BaseLLM,
-    LLMConfig,
-    LLMEvent,
-    LLMEventType,
-    ToolCall,
-    ToolResult,
-    LLMConnectionError,
-)
+from collections.abc import AsyncIterator
+
+from llm_providers.base import BaseLLM, LLMConfig, LLMEvent, ToolResult
+
 
 class OpenAILLM(BaseLLM):
-    """OpenAI Realtime API provider (STUB - Phase 8).
+    """OpenAI Realtime provider, not implemented yet."""
 
-    This stub raises NotImplementedError for all operations.
-    The functional implementation will be added in Phase 8.
-    """
-
-    def __init__(self, api_key: str, **kwargs):
+    def __init__(self, api_key: str | None = None, **kwargs: object) -> None:
         self._api_key = api_key
         self._connected = False
 
     async def connect(self, config: LLMConfig) -> None:
-        raise NotImplementedError(
-            "OpenAI provider not yet implemented. "
-            "This will be available in Phase 8. "
-            "Please use 'gemini' provider (default) for now."
-        )
+        raise NotImplementedError("OpenAI Realtime provider is not implemented.")
 
-    async def send_audio(self, audio_data: bytes, mime_type: str = "audio/pcm;rate=16000") -> None:
-        raise NotImplementedError("OpenAI provider not yet implemented")
+    async def send_audio(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/pcm;rate=16000",
+    ) -> None:
+        raise NotImplementedError("OpenAI Realtime provider is not implemented.")
 
     async def send_text(self, text: str) -> None:
-        raise NotImplementedError("OpenAI provider not yet implemented")
+        raise NotImplementedError("OpenAI Realtime provider is not implemented.")
 
     async def send_tool_result(self, result: ToolResult) -> None:
-        raise NotImplementedError("OpenAI provider not yet implemented")
+        raise NotImplementedError("OpenAI Realtime provider is not implemented.")
 
-    async def receive(self):
-        raise NotImplementedError("OpenAI provider not yet implemented")
-        yield  # Make this an async generator
+    def receive(self) -> AsyncIterator[LLMEvent]:
+        raise NotImplementedError("OpenAI Realtime provider is not implemented.")
 
     async def close(self) -> None:
-        pass
+        self._connected = False
 
     def is_connected(self) -> bool:
         return self._connected

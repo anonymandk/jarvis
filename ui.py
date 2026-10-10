@@ -41,11 +41,11 @@ BASE_DIR   = _base_dir()
 CONFIG_DIR = BASE_DIR / "config"
 API_FILE   = CONFIG_DIR / "api_keys.json"
 FONT_DIR   = BASE_DIR / "assets" / "fonts"
-UI_SETTINGS_FILE = Path.home() / ".jarvis" / "config" / "settings.json"
-LAYOUT_SETTINGS_FILE = Path.home() / ".jarvis" / "config" / "layout_settings.json"
+UI_SETTINGS_FILE = Path.home() / ".argus" / "config" / "settings.json"
+LAYOUT_SETTINGS_FILE = Path.home() / ".argus" / "config" / "layout_settings.json"
 
 # Each profile changes both cadence and rendering density.  Keeping this data
-# centralized makes the Settings UI, the renderer, and JARVIS voice commands
+# centralized makes the Settings UI, the renderer, and ARGUS voice commands
 # agree on what Low / Medium / High actually mean.
 GRAPHICS_PROFILES = {
     "low": {
@@ -254,7 +254,7 @@ def qcol(h: str, a: int = 255) -> QColor:
 # ---------------------------------------------------------------------------
 
 class ThemeManager:
-    """Manages color themes for the JARVIS UI."""
+    """Manages color themes for the ARGUS UI."""
 
     _COLOR_KEYS = (
         "BG", "PANEL", "PANEL2", "DARK", "DARK2", "BAR_BG", "CARD", "CARD_B",
@@ -489,7 +489,7 @@ class ChatBubbleWidget(QWidget):
         ib_lay.setSpacing(6)
 
         self._input = QLineEdit()
-        self._input.setPlaceholderText("Type a message to JARVIS…")
+        self._input.setPlaceholderText("Type a message to ARGUS…")
         self._input.setFont(QFont(UI_FONT, 10))
         self._input.setFixedHeight(32)
         self._input.setStyleSheet(f"""
@@ -574,7 +574,7 @@ class ChatBubbleWidget(QWidget):
                 item.widget().hide()
                 item.widget().deleteLater()
         self._messages.clear()
-        prefixes = {"user": "You: ", "ai": "JARVIS: ", "file": "FILE: ", "error": "ERR: ", "sys": "SYS: "}
+        prefixes = {"user": "You: ", "ai": "ARGUS: ", "file": "FILE: ", "error": "ERR: ", "sys": "SYS: "}
         for message in saved_messages:
             self._skip_typing = True
             self._on_message(prefixes.get(message["sender"], "SYS: ") + message["text"])
@@ -592,7 +592,7 @@ class ChatBubbleWidget(QWidget):
             self._skip_typing = True
             self._on_message(self._typing_full)
             return
-        partial = 'JARVIS: ' + self._typing_body[:self._typing_idx]
+        partial = 'ARGUS: ' + self._typing_body[:self._typing_idx]
         if hasattr(self, '_typing_bubble') and self._typing_bubble:
             self._c_lay.removeWidget(self._typing_bubble)
             self._typing_bubble.deleteLater()
@@ -617,8 +617,8 @@ class ChatBubbleWidget(QWidget):
         self._sig.emit(text)
 
     def _on_message(self, text: str):
-        # Typing animation for JARVIS messages
-        if text.lower().startswith('jarvis:') and not getattr(self, '_skip_typing', False):
+        # Typing animation for ARGUS messages
+        if text.lower().startswith('argus:') and not getattr(self, '_skip_typing', False):
             body = text[7:].strip()
             self._typing_idx = 0
             self._typing_body = body
@@ -642,14 +642,14 @@ class ChatBubbleWidget(QWidget):
             border_col = C.PRI_DIM
             text_col = C.WHITE
             name = "YOU"
-        elif tl.startswith("jarvis:"):
+        elif tl.startswith("argus:"):
             sender = "ai"
             display = text[7:].strip()
             align = Qt.AlignmentFlag.AlignLeft
             bg_col = C.PRI_GHO
             border_col = C.PRI
             text_col = C.PRI
-            name = "JARVIS"
+            name = "ARGUS"
         elif tl.startswith("file:"):
             sender = "file"
             display = text[5:].strip()
@@ -787,7 +787,7 @@ class FocusDialogueWidget(QWidget):
 
         message_row = QHBoxLayout()
         message_row.setSpacing(10)
-        self._speaker_lbl = QLabel("JARVIS")
+        self._speaker_lbl = QLabel("ARGUS")
         self._speaker_lbl.setFixedWidth(62)
         self._speaker_lbl.setFont(QFont(DISPLAY_FONT, 8, QFont.Weight.DemiBold))
         message_row.addWidget(self._speaker_lbl, alignment=Qt.AlignmentFlag.AlignTop)
@@ -801,7 +801,7 @@ class FocusDialogueWidget(QWidget):
         input_row = QHBoxLayout()
         input_row.setSpacing(7)
         self._input = QLineEdit()
-        self._input.setPlaceholderText("Give JARVIS a command")
+        self._input.setPlaceholderText("Give ARGUS a command")
         self._input.setFont(QFont(UI_FONT, 9))
         self._input.setFixedHeight(30)
         self._input.returnPressed.connect(self._submit)
@@ -829,8 +829,8 @@ class FocusDialogueWidget(QWidget):
         lower = clean.lower()
         if lower.startswith("you:"):
             speaker, body, color = "YOU", clean[4:].strip(), C.WHITE
-        elif lower.startswith("jarvis:"):
-            speaker, body, color = "JARVIS", clean[7:].strip(), C.PRI
+        elif lower.startswith("argus:"):
+            speaker, body, color = "ARGUS", clean[7:].strip(), C.PRI
         elif lower.startswith("err:") or "error" in lower:
             speaker, body, color = "ALERT", clean.replace("ERR:", "").strip(), C.RED
         else:
@@ -883,7 +883,7 @@ class FocusDialogueWidget(QWidget):
 # ---------------------------------------------------------------------------
 
 class ResearchProgressWidget(QWidget):
-    """Compact, factual progress surface for a long-running JARVIS task."""
+    """Compact, factual progress surface for a long-running ARGUS task."""
 
     _update_sig = pyqtSignal(object)
     _hide_sig = pyqtSignal()
@@ -3266,7 +3266,7 @@ class SparklineBar(QWidget):
 
 class AgentGridWidget(QWidget):
     """
-    Vertical timeline agent display – polished JARVIS edition.
+    Vertical timeline agent display – polished ARGUS edition.
     Implements all 12 feedback points: hierarchy, color, spacing, activity stream.
     """
 
@@ -4002,7 +4002,7 @@ class AIActivityCanvas(QWidget):
                            qcol(C.WHITE, 80))
 
 class TaskQueueWidget(QWidget):
-    """Displays a live task queue parsed from JARVIS log messages."""
+    """Displays a live task queue parsed from ARGUS log messages."""
 
     _sig = pyqtSignal(str, str)  # (task_name, status)
 
@@ -4377,7 +4377,7 @@ class LogWidget(QTextEdit):
         self._pos    = 0
         tl = self._text.lower()
         if   tl.startswith("you:"):    self._tag = "you"
-        elif tl.startswith("jarvis:"): self._tag = "ai"
+        elif tl.startswith("argus:"): self._tag = "ai"
         elif tl.startswith("file:"):   self._tag = "file"
         elif "err" in tl:              self._tag = "err"
         else:                          self._tag = "sys"
@@ -4503,7 +4503,7 @@ class FileDropZone(QWidget):
 
     def _browse(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select a file for JARVIS", str(Path.home()),
+            self, "Select a file for ARGUS", str(Path.home()),
             "All Files (*.*);;"
             "Images (*.jpg *.jpeg *.png *.gif *.webp *.bmp *.svg);;"
             "Documents (*.pdf *.docx *.txt *.md *.pptx);;"
@@ -4881,7 +4881,7 @@ class SetupOverlay(QWidget):
 
 class _OverlayBase(QWidget):
     """
-    Base class for all JARVIS overlay popups.
+    Base class for all ARGUS overlay popups.
     Provides:
       - Drag-to-move (click anywhere on the widget and drag)
       - An ✕ close button in the top-right corner
@@ -5403,7 +5403,7 @@ class SettingsOverlay(_OverlayBase):
 
 
 class NameSignInOverlay(_OverlayBase):
-    """Overlay that asks the user for their name so JARVIS can address them personally."""
+    """Overlay that asks the user for their name so ARGUS can address them personally."""
     done = pyqtSignal(str)   # emits the entered name (or "" if skipped)
 
     def __init__(self, parent=None, existing_name: str = ""):
@@ -5431,7 +5431,7 @@ class NameSignInOverlay(_OverlayBase):
             return w
 
         title_txt = "◈  UPDATE IDENTITY" if existing_name else "◈  IDENTITY PROTOCOL"
-        sub_txt   = f"Currently: {existing_name}" if existing_name else "JARVIS needs to know who it's talking to."
+        sub_txt   = f"Currently: {existing_name}" if existing_name else "ARGUS needs to know who it's talking to."
         layout.addWidget(_lbl(title_txt, 13, True))
         layout.addWidget(_lbl(sub_txt, 9, color=C.PRI_DIM))
         layout.addSpacing(4)
@@ -5512,7 +5512,7 @@ class NameSignInOverlay(_OverlayBase):
 
 
 class VoiceSelectOverlay(_OverlayBase):
-    """Popup overlay for selecting JARVIS voice (used in first-run setup flow)."""
+    """Popup overlay for selecting ARGUS voice (used in first-run setup flow)."""
     done = pyqtSignal(str)   # emits selected voice value (e.g. "puck")
 
     def __init__(self, parent=None, current_voice: str = "puck"):
@@ -5542,7 +5542,7 @@ class VoiceSelectOverlay(_OverlayBase):
             return w
 
         layout.addWidget(_lbl("◈  VOICE SELECTION", 13, True))
-        layout.addWidget(_lbl("Choose the voice JARVIS will speak with.", 9, color=C.PRI_DIM))
+        layout.addWidget(_lbl("Choose the voice ARGUS will speak with.", 9, color=C.PRI_DIM))
         layout.addSpacing(4)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
@@ -6069,7 +6069,7 @@ class _SubtitleWidget(QWidget):
         self._recalc_scroll_target()
 
         # Stop any pending hold timer — it will be restarted by start_hold_timer()
-        # which is called externally only when JARVIS finishes talking (turn_complete).
+        # which is called externally only when ARGUS finishes talking (turn_complete).
         self._hold_timer.stop()
 
         # Ensure animation timer is running for scroll
@@ -6079,7 +6079,7 @@ class _SubtitleWidget(QWidget):
         self.update()
 
     def start_hold_timer(self):
-        """Start (or restart) the fade-out hold timer. Call this when JARVIS finishes speaking."""
+        """Start (or restart) the fade-out hold timer. Call this when ARGUS finishes speaking."""
         if self._chunks:
             self._hold_timer.stop()
             self._hold_timer.start(self._HOLD_MS)
@@ -6301,13 +6301,13 @@ class _SubtitleWidget(QWidget):
 
 
 class VisionPreviewWindow(QWidget):
-    """Small draggable live preview shown while JARVIS is using vision."""
+    """Small draggable live preview shown while ARGUS is using vision."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setObjectName("visionPreview")
-        self.setAccessibleName("JARVIS live vision preview")
+        self.setAccessibleName("ARGUS live vision preview")
         self.setFixedSize(360, 248)
         self._source = "screen"
         self._drag_origin_global = None
@@ -6667,7 +6667,7 @@ class MainWindow(QMainWindow):
             }}
         """)
         central = QWidget()
-        central.setObjectName("jarvisRoot")
+        central.setObjectName("argusRoot")
         central.setStyleSheet(f"background: {C.BG};")
         self.setCentralWidget(central)
 
@@ -6829,7 +6829,7 @@ class MainWindow(QMainWindow):
         try:
             from pathlib import Path
             import json
-            cfg_file = Path.home() / ".jarvis" / "config" / "settings.json"
+            cfg_file = Path.home() / ".argus" / "config" / "settings.json"
             if cfg_file.exists():
                 cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
                 saved_theme = cfg.get("theme", "")
@@ -6902,7 +6902,7 @@ class MainWindow(QMainWindow):
                     self._vision_preview.stop()
                 self.hide()
                 self._tray.showMessage(
-                    "JARVIS", "Running in background. Click tray icon to restore.",
+                    "ARGUS", "Running in background. Click tray icon to restore.",
                     QSystemTrayIcon.MessageIcon.Information, 2000
                 )
                 return
@@ -6941,7 +6941,7 @@ class MainWindow(QMainWindow):
             QMenu::item:selected {{ background: {C.PRI_GHO}; color: {C.PRI}; }}
         """)
 
-        show_action = QAction("Show JARVIS", self)
+        show_action = QAction("Show ARGUS", self)
         show_action.triggered.connect(self._tray_show)
         tray_menu.addAction(show_action)
 
@@ -6951,7 +6951,7 @@ class MainWindow(QMainWindow):
 
         tray_menu.addSeparator()
 
-        quit_action = QAction("Quit JARVIS", self)
+        quit_action = QAction("Quit ARGUS", self)
         quit_action.triggered.connect(self._tray_quit)
         tray_menu.addAction(quit_action)
 
@@ -6968,7 +6968,7 @@ class MainWindow(QMainWindow):
         self._request_quit()
 
     def _request_quit(self):
-        """Use one clean shutdown path for tray, UI, and JARVIS self-quit."""
+        """Use one clean shutdown path for tray, UI, and ARGUS self-quit."""
         self._force_quit = True
         try:
             if self.on_quit_requested:
@@ -7147,7 +7147,7 @@ class MainWindow(QMainWindow):
             }}
         """)
         if self.centralWidget():
-            self.centralWidget().setStyleSheet(f"QWidget#jarvisRoot {{ background: {C.BG}; }}")
+            self.centralWidget().setStyleSheet(f"QWidget#argusRoot {{ background: {C.BG}; }}")
         if hasattr(self, "_middle_section"):
             self._middle_section.setStyleSheet(f"background: {C.BG};")
         if hasattr(self, "_ai_core_wrap"):
@@ -7200,7 +7200,7 @@ class MainWindow(QMainWindow):
             widget.update()
 
         try:
-            settings_dir = Path.home() / ".jarvis" / "config"
+            settings_dir = Path.home() / ".argus" / "config"
             settings_dir.mkdir(parents=True, exist_ok=True)
             settings_file = settings_dir / "settings.json"
             try:
@@ -7214,7 +7214,7 @@ class MainWindow(QMainWindow):
 
     def _handle_ui_command(self, action: str):
         action = str(action or "").strip().lower()
-        if action in {"quit jarvis", "quit_jarvis"}:
+        if action in {"quit argus", "quit_argus"}:
             self._request_quit()
             return True
         if action == "open_command_center":
@@ -7334,7 +7334,7 @@ class MainWindow(QMainWindow):
             )
             threading.Thread(target=self.on_text_command, args=(prompt,), daemon=True).start()
         else:
-            self._log.append_log(f"JARVIS: {announcement}")
+            self._log.append_log(f"ARGUS: {announcement}")
 
 
     def _toggle_left_panel(self):
@@ -7634,7 +7634,7 @@ class MainWindow(QMainWindow):
         rail = getattr(self, "_dock_frame", None)
         if rail is not None:
             rail.setStyleSheet(f"""
-                QWidget#JarvisCommandRail {{
+                QWidget#ArgusCommandRail {{
                     background: {C.BAR_BG};
                     border-top: 1px solid {C.BORDER_B};
                     border-bottom: 1px solid {C.BORDER};
@@ -7667,7 +7667,7 @@ class MainWindow(QMainWindow):
         strip = getattr(self, "_maker_signature", None)
         if strip is not None:
             strip.setStyleSheet(f"""
-                QWidget#JarvisMakerSignature {{
+                QWidget#ArgusMakerSignature {{
                     background: {C.BG};
                     border: none;
                 }}
@@ -7724,7 +7724,7 @@ class MainWindow(QMainWindow):
         left_col = QVBoxLayout(); left_col.setSpacing(1)
         left_col.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        stark = QLabel("JARVIS")
+        stark = QLabel("ARGUS")
         self._header_brand_lbl = stark
         stark.setObjectName("headerTitle")
         stark.setFont(QFont("Arial", 15, QFont.Weight.DemiBold))
@@ -7741,7 +7741,7 @@ class MainWindow(QMainWindow):
 
         lay.addStretch()
 
-        # ── Centre: JARVIS title ──────────────────────────────────────────────
+        # ── Centre: ARGUS title ──────────────────────────────────────────────
         mid = QVBoxLayout(); mid.setSpacing(1)
         mid.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
@@ -8091,8 +8091,8 @@ class MainWindow(QMainWindow):
     def _build_footer(self) -> QWidget:
         w = QWidget()
         self._dock_frame = w
-        w.setObjectName("JarvisCommandRail")
-        w.setAccessibleName("JARVIS command rail")
+        w.setObjectName("ArgusCommandRail")
+        w.setAccessibleName("ARGUS command rail")
         w.setFixedHeight(72)
         lay = QHBoxLayout(w)
         lay.setContentsMargins(14, 8, 14, 8)
@@ -8111,7 +8111,7 @@ class MainWindow(QMainWindow):
         title_row.setSpacing(7)
         self._rail_status_dot = QLabel("●")
         self._rail_status_dot.setFont(QFont(TECH_FONT, 7, QFont.Weight.Medium))
-        self._rail_status_dot.setAccessibleName("JARVIS status indicator")
+        self._rail_status_dot.setAccessibleName("ARGUS status indicator")
         title_row.addWidget(self._rail_status_dot)
         self._command_title_lbl = QLabel("COMMAND RAIL")
         self._command_title_lbl.setFont(QFont(UI_FONT, 9, QFont.Weight.DemiBold))
@@ -8121,7 +8121,7 @@ class MainWindow(QMainWindow):
 
         self._rail_mode_lbl = QLabel("LOCAL  /  LISTENING")
         self._rail_mode_lbl.setFont(QFont(TECH_FONT, 7, QFont.Weight.Medium))
-        self._rail_mode_lbl.setAccessibleName("JARVIS current state")
+        self._rail_mode_lbl.setAccessibleName("ARGUS current state")
         anchor_lay.addWidget(self._rail_mode_lbl)
         lay.addWidget(anchor)
 
@@ -8168,8 +8168,8 @@ class MainWindow(QMainWindow):
         track_lay.addWidget(_track_separator())
 
         self._tts_btn = _ctrl_btn("VOICE", 142)
-        self._tts_btn.setToolTip("Change JARVIS voice")
-        self._tts_btn.setAccessibleName("Change JARVIS voice")
+        self._tts_btn.setToolTip("Change ARGUS voice")
+        self._tts_btn.setAccessibleName("Change ARGUS voice")
         self._tts_btn.clicked.connect(self._show_tts_select)
         self._update_tts_btn()
         track_lay.addWidget(self._tts_btn)
@@ -8185,8 +8185,8 @@ class MainWindow(QMainWindow):
 
         # Theme cycle button
         self._theme_btn = _ctrl_btn("THEME", 176)
-        self._theme_btn.setToolTip("Cycle JARVIS theme")
-        self._theme_btn.setAccessibleName("Cycle JARVIS theme")
+        self._theme_btn.setToolTip("Cycle ARGUS theme")
+        self._theme_btn.setAccessibleName("Cycle ARGUS theme")
         self._theme_btn.clicked.connect(self._cycle_theme)
         track_lay.addWidget(self._theme_btn)
         lay.addWidget(track)
@@ -8219,9 +8219,9 @@ class MainWindow(QMainWindow):
         mirror_lay.addWidget(help_btn)
 
         self._quit_btn = QPushButton("QUIT")
-        self._quit_btn.setObjectName("JarvisQuitButton")
-        self._quit_btn.setAccessibleName("Quit JARVIS")
-        self._quit_btn.setToolTip("Quit JARVIS")
+        self._quit_btn.setObjectName("ArgusQuitButton")
+        self._quit_btn.setAccessibleName("Quit ARGUS")
+        self._quit_btn.setToolTip("Quit ARGUS")
         self._quit_btn.setFixedSize(78, 44)
         self._quit_btn.setFont(QFont(UI_FONT, 8, QFont.Weight.DemiBold))
         self._quit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -8236,8 +8236,8 @@ class MainWindow(QMainWindow):
         """Build the quiet, persistent creator signature beneath the shell."""
         strip = QWidget()
         self._maker_signature = strip
-        strip.setObjectName("JarvisMakerSignature")
-        strip.setAccessibleName("JARVIS creator trademark")
+        strip.setObjectName("ArgusMakerSignature")
+        strip.setAccessibleName("ARGUS creator trademark")
         strip.setFixedHeight(20)
 
         lay = QHBoxLayout(strip)
@@ -8251,7 +8251,7 @@ class MainWindow(QMainWindow):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._maker_signature_lbl.setAccessibleName("amd.creationz trademark")
-        self._maker_signature_lbl.setToolTip("JARVIS interface by amd.creationz")
+        self._maker_signature_lbl.setToolTip("ARGUS interface by amd.creationz")
         lay.addWidget(self._maker_signature_lbl)
 
         self._style_maker_signature()
@@ -8332,7 +8332,7 @@ class MainWindow(QMainWindow):
         cat  = _file_category(p)
         icon, _ = _FILE_ICONS.get(cat, _FILE_ICONS["unknown"])
         size = _fmt_size(p.stat().st_size)
-        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell JARVIS what to do with it")
+        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell ARGUS what to do with it")
         self._log.append_log(f"FILE: {p.name} ({size}) loaded")
         if self.on_text_command:
             msg = (
@@ -8432,14 +8432,14 @@ class MainWindow(QMainWindow):
                 "show the command center", "open command ceneter", "open the command ceneter",
             }:
                 self._set_command_center(True)
-                self._log.append_log("JARVIS: Command Center is open.")
+                self._log.append_log("ARGUS: Command Center is open.")
                 return
             if normalized in {
                 "close command center", "close the command center", "hide command center",
                 "hide the command center", "return to focus view",
             }:
                 self._set_command_center(False)
-                self._log.append_log("JARVIS: Returning to focus view.")
+                self._log.append_log("ARGUS: Returning to focus view.")
                 return
             if self.on_text_command:
                 def _dispatch():
@@ -8450,11 +8450,11 @@ class MainWindow(QMainWindow):
                 threading.Thread(target=_dispatch, daemon=True).start()
         except Exception as exc:
             # Exceptions escaping a PyQt signal handler can abort the process.
-            # Keep JARVIS alive and surface the problem in its own log instead.
+            # Keep ARGUS alive and surface the problem in its own log instead.
             try:
                 self._log.append_log(f"ERR: Message processing failed: {exc}")
             except Exception:
-                print(f"[JARVIS] Message processing failed: {exc}")
+                print(f"[ARGUS] Message processing failed: {exc}")
 
     def _apply_state(self, state: str):
         self.hud.state    = state
@@ -8504,7 +8504,7 @@ class MainWindow(QMainWindow):
 
         # Show toast for state transitions
         if state == "THINKING":
-            self._show_toast("JARVIS is thinking...", "info")
+            self._show_toast("ARGUS is thinking...", "info")
         elif state == "PROCESSING":
             self._show_toast("Processing request...", "info")
 
@@ -8694,7 +8694,7 @@ class MainWindow(QMainWindow):
         self._log.append_log("SYS: PARALLAX UI COMPLETE   [OK]")
         self._log.append_log("SYS: VOICE SYNTHESIS READY  [OK]")
         self._log.append_log(f"SYS: PLATFORM {os_name.upper()} DETECTED")
-        self._log.append_log("SYS: JARVIS MARK XXXIX - ALL SYSTEMS NOMINAL")
+        self._log.append_log("SYS: ARGUS MARK XXXIX - ALL SYSTEMS NOMINAL")
         # After setup: show voice popup first, then name popup
         self._show_voice_select_then_name()
 
@@ -8811,11 +8811,11 @@ class MainWindow(QMainWindow):
             from memory.memory_manager import update_memory
             update_memory({"identity": {"name": {"value": save_name}}})
             self._log.append_log(f"SYS: Identity set — {save_name}.")
-            self._log.append_log(f"JARVIS: The workshop is now at your disposal, {save_name}.")
-            self._log.append_log("JARVIS: All systems nominal. How may I assist you today?")
+            self._log.append_log(f"ARGUS: The workshop is now at your disposal, {save_name}.")
+            self._log.append_log("ARGUS: All systems nominal. How may I assist you today?")
         except Exception as e:
             self._log.append_log(f"SYS: Could not save name: {e}")
-        # Notify JarvisLive so it can update the running session immediately
+        # Notify ArgusLive so it can update the running session immediately
         if self.on_name_change:
             try:
                 self.on_name_change(save_name)
@@ -9042,7 +9042,7 @@ class _RootShim:
         pass
 
 
-class JarvisUI:
+class ArgusUI:
 
     def __init__(self, face_path: str, size=None):
         self._app = QApplication.instance() or QApplication(sys.argv)
@@ -9143,7 +9143,7 @@ class JarvisUI:
             pass
 
     def start_subtitle_hold(self):
-        """Thread-safe: start the subtitle fade-out hold timer (call when JARVIS finishes talking)."""
+        """Thread-safe: start the subtitle fade-out hold timer (call when ARGUS finishes talking)."""
         try:
             self._win._sub_hold_sig.emit()
         except Exception:
@@ -9252,11 +9252,11 @@ class JarvisUI:
             pass
 
     def set_theme(self, theme_key: str):
-        """Thread-safe theme change requested by JARVIS."""
+        """Thread-safe theme change requested by ARGUS."""
         self._win._theme_sig.emit(theme_key)
 
     def set_graphics_quality(self, quality: str):
-        """Thread-safe graphics quality change requested by JARVIS."""
+        """Thread-safe graphics quality change requested by ARGUS."""
         self._win._graphics_sig.emit(quality)
 
     def handle_ui_command(self, action: str):

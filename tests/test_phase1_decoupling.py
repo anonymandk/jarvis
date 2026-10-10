@@ -2,7 +2,7 @@ import asyncio
 import unittest
 from types import SimpleNamespace
 
-from core.jarvis_client import JarvisClient
+from core.argus_client import ArgusClient
 import main
 
 
@@ -41,7 +41,7 @@ class StubClient:
 
 class PhaseOneDecouplingTests(unittest.TestCase):
     def test_desktop_adapter_exposes_the_engine_contract(self):
-        from ui import JarvisUI
+        from ui import ArgusUI
 
         required_members = {
             "on_text_command",
@@ -58,39 +58,39 @@ class PhaseOneDecouplingTests(unittest.TestCase):
             "handle_ui_command",
         }
 
-        self.assertFalse(required_members - set(dir(JarvisUI)))
+        self.assertFalse(required_members - set(dir(ArgusUI)))
 
     def test_client_protocol_and_text_callback_are_wired(self):
         client = StubClient()
-        self.assertIsInstance(client, JarvisClient)
+        self.assertIsInstance(client, ArgusClient)
 
-        jarvis = main.JarvisLive(client)
+        argus = main.ArgusLive(client)
 
-        self.assertIs(jarvis.client, client)
-        self.assertIs(jarvis.ui, client)
-        self.assertEqual(client.on_text_command, jarvis._on_text_command)
+        self.assertIs(argus.client, client)
+        self.assertIs(argus.ui, client)
+        self.assertEqual(client.on_text_command, argus._on_text_command)
 
     def test_desktop_mode_keeps_the_complete_tool_inventory(self):
         client = StubClient()
-        jarvis = main.JarvisLive(client)
+        argus = main.ArgusLive(client)
 
-        self.assertFalse(jarvis.cloud_safe)
-        self.assertEqual(jarvis.tool_declarations, main.TOOL_DECLARATIONS)
+        self.assertFalse(argus.cloud_safe)
+        self.assertEqual(argus.tool_declarations, main.TOOL_DECLARATIONS)
 
     def test_cloud_safe_mode_loads_only_the_hosted_allowlist(self):
         client = StubClient()
-        jarvis = main.JarvisLive(client, cloud_safe=True)
-        names = {item["name"] for item in jarvis.tool_declarations}
+        argus = main.ArgusLive(client, cloud_safe=True)
+        names = {item["name"] for item in argus.tool_declarations}
 
         self.assertEqual(names, main.CLOUD_SAFE_ACTIONS)
         self.assertTrue(names.isdisjoint(main.LOCAL_MACHINE_ONLY_ACTIONS))
 
     def test_cloud_safe_mode_rejects_unadvertised_local_tool_calls(self):
         client = StubClient()
-        jarvis = main.JarvisLive(client, cloud_safe=True)
+        argus = main.ArgusLive(client, cloud_safe=True)
         call = SimpleNamespace(id="local-call", name="open_app", args={})
 
-        response = asyncio.run(jarvis._execute_tool(call))
+        response = asyncio.run(argus._execute_tool(call))
 
         self.assertIn("unavailable in cloud-safe mode", response.response["result"])
         self.assertEqual(client.events, [])

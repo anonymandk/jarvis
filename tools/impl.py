@@ -40,7 +40,7 @@ async def execute(ctx: Any, name: str, args: dict[str, Any]) -> dict[str, Any]:
         "screen_process": ("actions.screen_processor", "screen_process"),
         "task_status": ("agent.task_queue", "task_status"),
         "graphics_quality": ("main", "set_graphics_quality_stub"),
-        "jarvis_ui_control": ("main", "jarvis_ui_control_stub"),
+        "argus_ui_control": ("main", "argus_ui_control_stub"),
         "save_memory": ("memory.memory_manager", "save_memory_stub"),
         "save_memory": ("memory.memory_manager", "update_memory_stub"),
         "computer_settings": ("actions.computer_settings", "computer_settings"),
@@ -56,25 +56,25 @@ async def execute(ctx: Any, name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "graphics_quality":
         quality = (args.get("quality") or "").strip().lower()
         ctx.ui.set_graphics_quality(quality)
-        return {"result": f"JARVIS graphics quality changed to {quality}."}
+        return {"result": f"ARGUS graphics quality changed to {quality}."}
 
-    if name == "jarvis_ui_control":
+    if name == "argus_ui_control":
         action = str(args.get("action") or "").strip().lower()
         if action == "change_theme":
             theme = str(args.get("theme") or "").strip().lower()
             allowed = {"arc_reactor", "stealth_red", "vibranium_purple", "nanotech_gold", "platinum"}
             if theme not in allowed:
-                raise ValueError(f"Unknown JARVIS theme: {theme or 'missing'}")
+                raise ValueError(f"Unknown ARGUS theme: {theme or 'missing'}")
             ctx.ui.set_theme(theme)
-            return {"result": f"JARVIS theme changed to {theme.replace('_', ' ')}."}
+            return {"result": f"ARGUS theme changed to {theme.replace('_', ' ')}."}
         if action == "change_graphics_quality":
             quality = str(args.get("graphics_quality") or "").strip().lower()
             if quality not in {"low", "medium", "high"}:
                 raise ValueError(f"Unknown graphics quality: {quality or 'missing'}")
             ctx.ui.set_graphics_quality(quality)
-            return {"result": f"JARVIS graphics quality changed to {quality}."}
+            return {"result": f"ARGUS graphics quality changed to {quality}."}
         ctx.ui.handle_ui_command(action)
-        return {"result": f"JARVIS interface action completed: {action.replace('_', ' ')}."}
+        return {"result": f"ARGUS interface action completed: {action.replace('_', ' ')}."}
 
     if name == "save_memory":
         # main.py special-cases save_memory to update long-term memory silently

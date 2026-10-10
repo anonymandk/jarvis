@@ -1,4 +1,4 @@
-"""Example plugin demonstrating how to extend JARVIS with custom tools."""
+"""Example plugin demonstrating how to extend ARGUS with custom tools."""
 
 from __future__ import annotations
 

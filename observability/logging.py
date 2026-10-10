@@ -1,9 +1,9 @@
-"""Logging configuration for JARVIS."""
+"""Logging configuration for ARGUS."""
 import logging
 import sys
 
 def setup_logging(level: str = "INFO") -> None:
-    """Configure root logger for JARVIS."""
+    """Configure root logger for ARGUS."""
     logger = logging.getLogger()
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     handler = logging.StreamHandler(sys.stdout)

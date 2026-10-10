@@ -1,4 +1,4 @@
-"""Audio backend factory for JARVIS.
+"""Audio backend factory for ARGUS.
 
 Creates the appropriate AudioInterface implementation based on configuration.
 """
@@ -55,9 +55,9 @@ def create_audio_backend(
 
 
 def get_audio_backend_from_settings(**kwargs) -> AudioInterface:
-    """Create audio backend from JARVIS settings.
+    """Create audio backend from ARGUS settings.
 
-    Reads JARVIS_AUDIO_BACKEND env var (via settings) to determine backend.
+    Reads ARGUS_AUDIO_BACKEND env var (via settings) to determine backend.
     """
     settings = get_settings()
     backend = getattr(settings.audio, "backend", "auto")

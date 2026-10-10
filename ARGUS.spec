@@ -21,12 +21,12 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='JARVIS-Debug',
+    name='ARGUS',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -40,5 +40,11 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='JARVIS-Debug',
+    name='ARGUS',
+)
+app = BUNDLE(
+    coll,
+    name='ARGUS.app',
+    icon=None,
+    bundle_identifier=None,
 )

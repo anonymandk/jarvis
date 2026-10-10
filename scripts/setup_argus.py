@@ -1,4 +1,4 @@
-"""Cross-platform one-time JARVIS setup (Windows, macOS, Linux)."""
+"""Cross-platform one-time ARGUS setup (Windows, macOS, Linux)."""
 from __future__ import annotations
 
 import os
@@ -18,7 +18,7 @@ def run(*args: str) -> None:
 
 
 def main() -> int:
-    print("JARVIS setup — Windows / macOS / Linux")
+    print("ARGUS setup — Windows / macOS / Linux")
     if shutil.which("python3"):
         host_python = "python3"
     elif shutil.which("python"):
@@ -43,7 +43,7 @@ def main() -> int:
     command_dir = VENV / ("Scripts" if os.name == "nt" else "bin")
     print("\nSetup complete.")
     print(f"Activate the environment: {command_dir / ('activate.bat' if os.name == 'nt' else 'activate')}")
-    print("Then launch with: jarvis")
+    print("Then launch with: argus")
     return 0
 
 

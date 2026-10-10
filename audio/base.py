@@ -1,4 +1,4 @@
-"""Audio interface abstraction for JARVIS.
+"""Audio interface abstraction for ARGUS.
 
 This module defines the AudioInterface protocol that all audio backends must implement.
 """
@@ -85,7 +85,7 @@ class AudioConfig:
 
     @classmethod
     def from_settings(cls, settings) -> "AudioConfig":
-        """Create AudioConfig from JARVIS settings object."""
+        """Create AudioConfig from ARGUS settings object."""
         return cls(
             channels=settings.audio.channels,
             send_sample_rate=settings.audio.send_sample_rate,

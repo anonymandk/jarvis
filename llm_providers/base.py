@@ -1,191 +1,122 @@
-"""Base LLM Provider interface for JARVIS.
-
-Defines the abstract interface for real-time LLM providers with normalized events.
-This is NOT a copy of the Gemini API - it's a normalized interface that all
-providers must implement.
-"""
+"""Provider-neutral interfaces and data models for ARGUS LLM integrations."""
 
 from __future__ import annotations
 
-import asyncio
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, AsyncIterator, Optional
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, AsyncIterator
 
 
 class LLMEventType(Enum):
-    """Normalized event types from LLM providers."""
-    AUDIO = "audio"                    # Audio chunk from model
-    TEXT = "text"                      # Text transcript from model
-    TOOL_CALL = "tool_call"            # Model requests tool execution
-    TURN_COMPLETE = "turn_complete"    # Model finished its turn
-    INTERRUPTION = "interruption"      # User interrupted (VAD)
-    ERROR = "error"                    # Provider error
-    CLOSE = "close"                    # Session closed normally
+    """Normalized event types emitted by LLM providers."""
+
+    AUDIO = "audio"
+    TEXT = "text"
+    TOOL_CALL = "tool_call"
+    TURN_COMPLETE = "turn_complete"
+    INTERRUPTION = "interruption"
+    ERROR = "error"
+    CLOSE = "close"
 
 
 @dataclass
 class LLMEvent:
-    """Normalized event from LLM provider."""
+    """Normalized event emitted by an LLM provider."""
+
     type: LLMEventType
     data: Any = None
-    metadata: dict = None
-
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ToolCall:
     """Normalized tool call request."""
+
     id: str
     name: str
-    args: dict
+    args: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ToolResult:
-    """Normalized tool result to send back to provider."""
+    """Normalized tool result sent back to a provider."""
+
     id: str
     name: str
     result: Any
-    error: str = None
+    error: str | None = None
 
 
 class BaseLLM(ABC):
-    """Abstract base class for real-time LLM providers.
-
-    All providers must implement this interface. The interface models a
-    real-time bidirectional session with normalized events, not a direct
-    mapping to any specific provider's API.
-    """
+    """Abstract interface for real-time, bidirectional LLM providers."""
 
     @abstractmethod
-    async def connect(self, config: "LLMConfig") -> None:
-        """Establish connection to the LLM provider.
-
-        Args:
-            config: Configuration for the session including tools, voice, etc.
-
-        Raises:
-            ConnectionError: If connection fails
-            AuthenticationError: If credentials are invalid
-        """
-        ...
+    async def connect(self, config: LLMConfig) -> None:
+        """Establish a provider session."""
 
     @abstractmethod
-    async def send_audio(self, audio_data: bytes, mime_type: str = "audio/pcm;rate=16000") -> None:
-        """Send audio input to the model.
-
-        Args:
-            audio_data: Raw PCM audio bytes
-            mime_type: MIME type with sample rate info
-        """
-        ...
+    async def send_audio(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/pcm;rate=16000",
+    ) -> None:
+        """Send raw audio to the model."""
 
     @abstractmethod
     async def send_text(self, text: str) -> None:
-        """Send text input to the model.
-
-        Args:
-            text: Text message from user
-        """
-        ...
+        """Send text to the model."""
 
     @abstractmethod
     async def send_tool_result(self, result: ToolResult) -> None:
-        """Send tool execution result back to the model.
-
-        Args:
-            result: ToolResult with id, name, result/error
-        """
-        ...
+        """Send a tool execution result back to the model."""
 
     @abstractmethod
-    async def receive(self) -> AsyncIterator[LLMEvent]:
-        """Receive normalized events from the model.
-
-        Yields:
-            LLMEvent: Normalized events (audio, text, tool_call, turn_complete, etc.)
-        """
-        ...
+    def receive(self) -> AsyncIterator[LLMEvent]:
+        """Yield normalized events received from the model."""
 
     @abstractmethod
     async def close(self) -> None:
-        """Close the session gracefully."""
-        ...
+        """Close the provider session."""
 
     @abstractmethod
     def is_connected(self) -> bool:
-        """Check if session is active."""
-        ...
+        """Return whether the provider session is active."""
 
     @abstractmethod
     def classify_error(self, error: Exception) -> str:
-        """Classify provider error for retry policy.
-
-        Returns:
-            One of: "transient", "permanent", "normal_close", "unsupported_voice"
-        """
-        ...
+        """Classify errors for retry policy decisions."""
 
 
 @dataclass
 class LLMConfig:
-    """Configuration for LLM session.
+    """Provider-neutral configuration for a live LLM session."""
 
-    This is provider-agnostic configuration that gets translated to
-    provider-specific formats by each implementation.
-    """
-    # Model selection
     model: str
-
-    # System prompt with memory/time context
     system_instruction: str
-
-    # Voice settings
     voice_name: str
-
-    # Audio settings
     input_sample_rate: int = 16000
     output_sample_rate: int = 24000
     vad_silence_ms: int = 200
-
-    # Tools (neutral JSON schema format)
-    tools: list[dict] = None
-
-    # Provider-specific options
-    provider_options: dict = None
-
-    def __post_init__(self):
-        if self.tools is None:
-            self.tools = []
-        if self.provider_options is None:
-            self.provider_options = {}
+    tools: list[dict[str, Any]] = field(default_factory=list)
+    provider_options: dict[str, Any] = field(default_factory=dict)
 
 
 class LLMProviderError(Exception):
-    """Base exception for LLM provider errors."""
-    pass
+    """Base exception for provider errors."""
 
 
 class LLMConnectionError(LLMProviderError):
-    """Connection-related errors."""
-    pass
+    """Raised when a provider connection fails."""
 
 
 class LLMAuthenticationError(LLMProviderError):
-    """Authentication/credential errors."""
-    pass
+    """Raised when provider credentials are rejected."""
 
 
 class LLMUnsupportedVoiceError(LLMProviderError):
-    """Voice not supported by provider/model."""
-    pass
+    """Raised when a voice is not supported by the provider."""
 
 
 class LLMTransientError(LLMProviderError):
-    """Transient errors that may succeed on retry."""
-    pass
+    """Raised when a provider error may succeed on retry."""

@@ -1,4 +1,4 @@
-"""LLM Providers package for JARVIS."""
+"""LLM Providers package for ARGUS."""
 
 from __future__ import annotations
 

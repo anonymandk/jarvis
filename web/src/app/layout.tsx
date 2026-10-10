@@ -4,8 +4,8 @@ import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "JARVIS | Command Interface",
-  description: "A focused voice and text interface for JARVIS.",
+  title: "ARGUS | Command Interface",
+  description: "A focused voice and text interface for ARGUS.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

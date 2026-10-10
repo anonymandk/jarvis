@@ -1,15 +1,15 @@
-# JARVIS
+# ARGUS
 
 Local Gemini Live desktop assistant with a PyQt6 interface, voice interaction, detachable panels, and optional browser, file, screen, and messaging tools.
 
-JARVIS also includes a dedicated presentation studio that creates, edits,
+ARGUS also includes a dedicated presentation studio that creates, edits,
 redesigns, and extends editable widescreen `.pptx` decks from documents, data,
 images, audio, and video, with optional PDF export. See the
 [usage guide](docs/USAGE.md#6-powerpoint-presentations) for examples.
 
 ## Requirements
 
-You need **Python 3.11 or newer** installed to set up and run JARVIS. Confirm
+You need **Python 3.11 or newer** installed to set up and run ARGUS. Confirm
 your Python version before continuing:
 
 ```bash
@@ -21,23 +21,23 @@ python --version
 In Terminal, run:
 
 ```bash
-git clone https://github.com/MAL19INDUSTRIES/JARVIS-OS-V.2.git
-cd JARVIS-OS-V.2
-python scripts/setup_jarvis.py
+git clone https://github.com/MAL19INDUSTRIES/ARGUS-OS-V.2.git
+cd ARGUS-OS-V.2
+python scripts/setup_argus.py
 ```
 
-On Windows, you can double-click `scripts/setup_jarvis.bat` instead.
+On Windows, you can double-click `scripts/setup_argus.bat` instead.
 
-Open `.env`, add your `GEMINI_API_KEY`, then launch JARVIS:
+Open `.env`, add your `GEMINI_API_KEY`, then launch ARGUS:
 
 ```bash
-jarvis
+argus
 ```
 
 You only need to run setup once. Activate `.venv` when opening a new terminal,
-then type `jarvis`.
+then type `argus`.
 
-JARVIS's core UI, Gemini connection, presentations, research, files, and CLI are
+ARGUS's core UI, Gemini connection, presentations, research, files, and CLI are
 cross-platform. Some computer-control, email, media, and browser integrations
 depend on permissions and available applications on each operating system.
 
@@ -72,7 +72,7 @@ npm run dev
 
 Production templates are included for Fly.io (`fly.toml`), Render
 (`render.yaml`), and Vercel (`web/vercel.json`). Configure `DATABASE_URL`,
-`REDIS_URL`, `JWT_SECRET`, `JARVIS_ENCRYPTION_KEY`, and `CORS_ORIGINS` on the
+`REDIS_URL`, `JWT_SECRET`, `ARGUS_ENCRYPTION_KEY`, and `CORS_ORIGINS` on the
 API host. Configure `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` on Vercel.
 The deployment workflow runs manually after the Fly and Vercel repository
 secrets have been added.
@@ -85,32 +85,32 @@ source .venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 cp .env.example .env
-./scripts/install_jarvis_cli.sh
-jarvis
+./scripts/install_argus_cli.sh
+argus
 ```
 
 Set `GEMINI_API_KEY` in `.env` before launch. Optional settings such as voice and local API keys are documented in `.env.example`.
 
-### Launch with `jarvis`
+### Launch with `argus`
 
 The CLI launcher is included in this repository. After cloning and completing
 the one-time setup, install it for your user with:
 
 ```bash
-./scripts/install_jarvis_cli.sh
+./scripts/install_argus_cli.sh
 ```
 
-Open a new terminal (or reload your shell profile), then start JARVIS with:
+Open a new terminal (or reload your shell profile), then start ARGUS with:
 
 ```bash
-jarvis
+argus
 ```
 
 Before packaging or releasing the desktop app, run the side-effect-safe
 capability audit:
 
 ```bash
-jarvis --self-test
+argus --self-test
 ```
 
 The audit exercises voice/tool contracts, messaging routing and approval
@@ -121,7 +121,7 @@ device are labeled `LIVE CHECK REQUIRED`, and a JSON report is written under
 `.qa-artifacts/`.
 
 Alternatively, from an activated virtual environment, `python3 -m pip install -e .`
-installs the same `jarvis` command through the standard Python package entry point.
+installs the same `argus` command through the standard Python package entry point.
 
 ## Documentation
 
